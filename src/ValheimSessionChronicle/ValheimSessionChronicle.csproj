@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>ValheimSessionChronicle</AssemblyName>
+    <RootNamespace>ValheimSessionChronicle</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <Description>Client-side Valheim session chronicle and activity tracker.</Description>
+    <Authors>FraXy</Authors>
+    <Version>1.0.0</Version>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <NoWarn>1701;1702</NoWarn>
+
+    <!--
+      Override these in Visual Studio/MSBuild if Valheim is installed elsewhere:
+      msbuild /p:ValheimInstallPath="D:\SteamLibrary\steamapps\common\Valheim"
+    -->
+    <ValheimInstallPath Condition="'$(ValheimInstallPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimInstallPath>
+    <ValheimManagedPath>$(ValheimInstallPath)\valheim_Data\Managed</ValheimManagedPath>
+    <BepInExCorePath>$(ValheimInstallPath)\BepInEx\core</BepInExCorePath>
+    <PackagePluginDir>$(MSBuildProjectDirectory)\..\..\package\plugins\ValheimSessionChronicle</PackagePluginDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCorePath)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCorePath)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(BepInExCorePath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ValheimManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_valheim">
+      <HintPath>$(ValheimManagedPath)\assembly_valheim.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_guiutils">
+      <HintPath>$(ValheimManagedPath)\assembly_guiutils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyToThunderstorePackageFolder" AfterTargets="Build">
+    <MakeDir Directories="$(PackagePluginDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackagePluginDir)" />
+  </Target>
+</Project>

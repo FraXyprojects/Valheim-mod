@@ -1,0 +1,7 @@
+bin/
+obj/
+package/plugins/ValheimSessionChronicle/*.dll
+package/plugins/ValheimSessionChronicle/*.pdb
+*.user
+*.suo
+*.cache

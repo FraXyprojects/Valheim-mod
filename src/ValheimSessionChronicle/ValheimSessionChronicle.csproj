@@ -17,7 +17,7 @@
     -->
     <ValheimInstallPath Condition="'$(ValheimInstallPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimInstallPath>
     <ValheimManagedPath>$(ValheimInstallPath)\valheim_Data\Managed</ValheimManagedPath>
-    <BepInExCorePath>$(ValheimInstallPath)\BepInEx\core</BepInExCorePath>
+    <BepInExCorePath>C:\Users\FraXy\AppData\Roaming\Thunderstore Mod Manager\DataFolder\Valheim\profiles\Default\BepInEx\core</BepInExCorePath>
     <PackagePluginDir>$(MSBuildProjectDirectory)\..\..\package\plugins\ValheimSessionChronicle</PackagePluginDir>
   </PropertyGroup>
 
@@ -30,10 +30,6 @@
       <HintPath>$(BepInExCorePath)\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(BepInExCorePath)\Newtonsoft.Json.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(ValheimManagedPath)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
@@ -44,6 +40,11 @@
     </Reference>
     <Reference Include="assembly_guiutils">
       <HintPath>$(ValheimManagedPath)\assembly_guiutils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <Reference Include="UnityEngine">
+      <HintPath>$(ValheimManagedPath)\UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

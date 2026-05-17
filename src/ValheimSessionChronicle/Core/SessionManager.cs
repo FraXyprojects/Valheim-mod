@@ -58,19 +58,19 @@ namespace ValheimSessionChronicle.Core
             _events.Begin(_current);
             AddKnownPlayer(localPlayer);
 
-                _events.Add(
-                    EventTypes.SessionStarted,
-                    EventCategories.Session,
+            _events.Add(
+                EventTypes.SessionStarted,
+                EventCategories.Session,
                 $"Session začala na serveru {_current.ServerName}.",
                 actor: localPlayer,
-                importance: 3);
+                importance: EventImportance.High);
 
             _events.Add(
                 EventTypes.PlayerJoined,
                 EventCategories.Player,
                 $"{localPlayer} se připojil k serveru.",
                 actor: localPlayer,
-                importance: 3);
+                importance: EventImportance.Medium);
 
             ChronicleLogger.Info($"Session started. Server='{_current.ServerName}', player='{localPlayer}'. {explicitReason}");
         }
@@ -93,7 +93,7 @@ namespace ValheimSessionChronicle.Core
                     EventCategories.Session,
                     $"Hráč byl odpojen. Důvod: {reason}",
                     actor: _current.LocalPlayerName,
-                    importance: 3,
+                    importance: EventImportance.High,
                     metadata: new Dictionary<string, string> { ["DisconnectReason"] = disconnectReason.ToString() });
 
                 StorageResult result = _storage.Save(_current, _config);
@@ -103,7 +103,9 @@ namespace ValheimSessionChronicle.Core
                     _discordWebhookClient.SendPlainTextAsync(_config.DiscordWebhookURL.Value, result.TxtReport ?? string.Empty);
                 }
 
-                ChronicleLogger.Info($"Session ended. TXT='{result.TxtPath}', JSON='{result.JsonPath}'.");
+                ChronicleLogger.Info(string.IsNullOrWhiteSpace(result.JsonPath)
+                    ? $"Session ended. TXT='{result.TxtPath}'."
+                    : $"Session ended. TXT='{result.TxtPath}', debug JSON='{result.JsonPath}'.");
             }
             catch (Exception ex)
             {
@@ -168,7 +170,7 @@ namespace ValheimSessionChronicle.Core
                 $"{playerName} zemřel.",
                 actor: playerName,
                 position: ValheimNames.FormatPosition(player.transform.position),
-                importance: 3,
+                importance: EventImportance.High,
                 duplicateKey: "death:" + playerName,
                 duplicateCooldownSeconds: 5);
         }
@@ -194,7 +196,7 @@ namespace ValheimSessionChronicle.Core
                     $"{playerName} se znovu objevil ve světě.",
                     actor: playerName,
                     position: ValheimNames.FormatPosition(player.transform.position),
-                    importance: 2,
+                    importance: EventImportance.Medium,
                     duplicateKey: "respawn:" + playerName,
                     duplicateCooldownSeconds: 10);
             }
@@ -202,7 +204,7 @@ namespace ValheimSessionChronicle.Core
 
         public void RecordBiomeEntered(string playerName, string biomeName, Vector3 position)
         {
-            if (_current == null || string.IsNullOrWhiteSpace(biomeName))
+            if (_current == null || !ChronicleFilters.IsValidBiome(biomeName))
             {
                 return;
             }
@@ -229,7 +231,7 @@ namespace ValheimSessionChronicle.Core
                     actor: playerName,
                     biome: biomeName,
                     position: ValheimNames.FormatPosition(position),
-                    importance: firstForSession ? 3 : 2,
+                    importance: firstForSession ? EventImportance.High : EventImportance.Medium,
                     duplicateKey: "biome:" + playerName + ":" + biomeName,
                     duplicateCooldownSeconds: 30);
             }
@@ -250,7 +252,7 @@ namespace ValheimSessionChronicle.Core
                 EventCategories.Environment,
                 $"Počasí se změnilo na {weatherName}.",
                 target: weatherName,
-                importance: 1,
+                importance: EventImportance.Low,
                 duplicateKey: "weather:" + weatherName,
                 duplicateCooldownSeconds: 60);
         }
@@ -276,7 +278,7 @@ namespace ValheimSessionChronicle.Core
                 EventCategories.Environment,
                 isNight ? "Nastala noc." : "Začal den.",
                 target: isNight ? "Night" : "Day",
-                importance: 1,
+                importance: EventImportance.Low,
                 duplicateKey: "daynight:" + isNight,
                 duplicateCooldownSeconds: 60);
         }
@@ -296,41 +298,27 @@ namespace ValheimSessionChronicle.Core
             }
 
             string localName = ValheimNames.GetPlayerName(localPlayer);
+            PlayerStats stats = EnsurePlayerStats(localName);
 
             if (attacker == localPlayer && victim != localPlayer && !ValheimNames.IsPlayer(victim))
             {
                 _recentLocalDamageTargets[victim.GetInstanceID()] = DateTime.UtcNow;
-                PlayerStats stats = EnsurePlayerStats(localName);
                 stats.CombatMoments++;
-
-                string enemyName = ValheimNames.GetCharacterName(victim);
-                _events.Add(
-                    EventTypes.CombatMoment,
-                    EventCategories.Combat,
-                    $"{localName} bojuje s {enemyName}.",
-                    actor: localName,
-                    target: enemyName,
-                    position: ValheimNames.FormatPosition(victim.transform.position),
-                    importance: 1,
-                    duplicateKey: "combat:attack:" + enemyName,
-                    duplicateCooldownSeconds: 180);
             }
             else if (victim == localPlayer && attacker != null && attacker != localPlayer)
             {
-                PlayerStats stats = EnsurePlayerStats(localName);
                 stats.CombatMoments++;
 
                 string attackerName = ValheimNames.GetCharacterName(attacker);
-                _events.Add(
-                    EventTypes.CombatMoment,
-                    EventCategories.Combat,
-                    $"{localName} je v boji s {attackerName}.",
-                    actor: localName,
-                    target: attackerName,
-                    position: ValheimNames.FormatPosition(localPlayer.transform.position),
-                    importance: 1,
-                    duplicateKey: "combat:defense:" + attackerName,
-                    duplicateCooldownSeconds: 180);
+                if (ShouldCount("danger:" + attackerName, TimeSpan.FromSeconds(90)))
+                {
+                    stats.DangerousEncounters++;
+                    string biome = GetLocalBiome();
+                    if (ChronicleFilters.IsValidBiome(biome))
+                    {
+                        Increment(stats.DangerousEncountersByBiome, biome);
+                    }
+                }
             }
         }
 
@@ -368,31 +356,40 @@ namespace ValheimSessionChronicle.Core
             string localName = ValheimNames.GetPlayerName(localPlayer);
             bool likelyLocalKill = WasRecentlyDamagedByLocalPlayer(character);
 
-            // Valheim does not expose server-authoritative kill ownership to this passive client.
-            // A kill is attributed to the local player only when local damage was seen shortly before death.
+            // Kill ownership is inferred only from recent local damage. Unclaimed visible deaths stay out of the chronicle.
             if (likelyLocalKill)
             {
                 PlayerStats stats = EnsurePlayerStats(localName);
                 stats.EnemiesKilled++;
                 Increment(stats.EnemyKills, characterName);
+
+                string biome = GetLocalBiome();
+                if (ChronicleFilters.IsValidBiome(biome))
+                {
+                    IncrementNested(stats.EnemyKillsByBiome, biome, characterName);
+                }
+
+                int killCount = stats.EnemyKills[characterName];
+                bool dangerousEnemy = ChronicleFilters.IsDangerousEnemy(characterName);
+                if (IsMilestoneCount(killCount) || (dangerousEnemy && killCount == 1))
+                {
+                    _events.Add(
+                        EventTypes.CombatMilestone,
+                        EventCategories.Combat,
+                        BuildCombatMilestoneDescription(localName, characterName, killCount, biome, dangerousEnemy),
+                        actor: localName,
+                        target: characterName,
+                        biome: ChronicleFilters.IsValidBiome(biome) ? biome : string.Empty,
+                        position: ValheimNames.FormatPosition(character.transform.position),
+                        importance: dangerousEnemy ? EventImportance.High : EventImportance.Medium,
+                        duplicateKey: "combatmilestone:" + characterName + ":" + killCount,
+                        duplicateCooldownSeconds: 5);
+                }
             }
             else
             {
                 _current.Environment.VisibleEnemyDeaths++;
             }
-
-            _events.Add(
-                EventTypes.EnemyKilled,
-                EventCategories.Combat,
-                likelyLocalKill
-                    ? $"{localName} zabil {characterName}."
-                    : $"V okolí zemřel nepřítel {characterName}.",
-                actor: likelyLocalKill ? localName : "Okolí",
-                target: characterName,
-                position: ValheimNames.FormatPosition(character.transform.position),
-                importance: likelyLocalKill ? 2 : 1,
-                duplicateKey: "enemydeath:" + characterName,
-                duplicateCooldownSeconds: likelyLocalKill ? 20 : 60);
         }
 
         public void RecordBossKill(string bossName, Character character)
@@ -417,7 +414,7 @@ namespace ValheimSessionChronicle.Core
                 actor: "Skupina",
                 target: bossName,
                 position: character == null ? string.Empty : ValheimNames.FormatPosition(character.transform.position),
-                importance: 5,
+                importance: EventImportance.Critical,
                 duplicateKey: "boss:" + bossName,
                 duplicateCooldownSeconds: 120);
         }
@@ -446,18 +443,25 @@ namespace ValheimSessionChronicle.Core
             _current.Environment.PortalUses++;
 
             string portalTag = ValheimNames.GetPortalTag(portal);
-            _events.Add(
-                EventTypes.PortalUsed,
-                EventCategories.Travel,
-                string.IsNullOrWhiteSpace(portalTag)
-                    ? $"{playerName} použil portál."
-                    : $"{playerName} použil portál '{portalTag}'.",
-                actor: playerName,
-                target: portalTag,
-                position: ValheimNames.FormatPosition(player.transform.position),
-                importance: 2,
-                duplicateKey: "portal:" + playerName,
-                duplicateCooldownSeconds: 5);
+            bool firstPortalUse = stats.PortalUses == 1;
+            bool namedPortalUse = !string.IsNullOrWhiteSpace(portalTag) &&
+                                  ShouldCount("portal-tag:" + portalTag, TimeSpan.FromMinutes(10));
+
+            if (firstPortalUse || namedPortalUse)
+            {
+                _events.Add(
+                    EventTypes.PortalUsed,
+                    EventCategories.Travel,
+                    string.IsNullOrWhiteSpace(portalTag)
+                        ? $"{playerName} poprvé použil portál."
+                        : $"{playerName} použil portál '{portalTag}' jako důležitý přesun výpravy.",
+                    actor: playerName,
+                    target: portalTag,
+                    position: ValheimNames.FormatPosition(player.transform.position),
+                    importance: EventImportance.Medium,
+                    duplicateKey: "portal-event:" + playerName + ":" + portalTag,
+                    duplicateCooldownSeconds: 300);
+            }
         }
 
         public void RecordSleeping(Player player)
@@ -476,15 +480,18 @@ namespace ValheimSessionChronicle.Core
             PlayerStats stats = EnsurePlayerStats(playerName);
             stats.SleepingEvents++;
 
-            _events.Add(
-                EventTypes.Sleeping,
-                EventCategories.Player,
-                $"{playerName} si lehl ke spánku.",
-                actor: playerName,
-                position: ValheimNames.FormatPosition(player.transform.position),
-                importance: 2,
-                duplicateKey: "sleep:" + playerName,
-                duplicateCooldownSeconds: 60);
+            if (stats.SleepingEvents == 1)
+            {
+                _events.Add(
+                    EventTypes.Sleeping,
+                    EventCategories.Player,
+                    $"{playerName} si poprvé během session odpočinul u postele.",
+                    actor: playerName,
+                    position: ValheimNames.FormatPosition(player.transform.position),
+                    importance: EventImportance.Medium,
+                    duplicateKey: "sleep-event:" + playerName,
+                    duplicateCooldownSeconds: 300);
+            }
         }
 
         public void RecordShipUse(object[] args)
@@ -509,15 +516,18 @@ namespace ValheimSessionChronicle.Core
             PlayerStats stats = EnsurePlayerStats(playerName);
             stats.ShipUses++;
 
-            _events.Add(
-                EventTypes.ShipUsed,
-                EventCategories.Travel,
-                $"{playerName} použil kormidlo lodi.",
-                actor: playerName,
-                position: ValheimNames.FormatPosition(player.transform.position),
-                importance: 2,
-                duplicateKey: "ship:" + playerName,
-                duplicateCooldownSeconds: 180);
+            if (stats.ShipUses == 1)
+            {
+                _events.Add(
+                    EventTypes.ShipUsed,
+                    EventCategories.Travel,
+                    $"{playerName} vyrazil na vodu a převzal kormidlo lodi.",
+                    actor: playerName,
+                    position: ValheimNames.FormatPosition(player.transform.position),
+                    importance: EventImportance.High,
+                    duplicateKey: "ship-event:" + playerName,
+                    duplicateCooldownSeconds: 600);
+            }
         }
 
         public void RecordCrafting(Player player, object[] args)
@@ -544,19 +554,17 @@ namespace ValheimSessionChronicle.Core
             stats.Crafts++;
             Increment(stats.CraftedItems, craftedItem);
 
-            if (firstCraft || ValheimNames.IsImportantCraftingMilestone(craftedItem))
+            if (firstCraft && ValheimNames.IsImportantCraftingMilestone(craftedItem))
             {
                 _events.Add(
-                    firstCraft ? EventTypes.Discovery : EventTypes.Crafting,
-                    firstCraft ? EventCategories.Progression : EventCategories.Crafting,
-                    firstCraft
-                        ? $"{playerName} poprvé vyrobil {craftedItem}."
-                        : $"{playerName} vyrobil {craftedItem}.",
+                    EventTypes.Crafting,
+                    EventCategories.Progression,
+                    $"{playerName} vyrobil důležitý předmět: {craftedItem}.",
                     actor: playerName,
                     target: craftedItem,
                     position: ValheimNames.FormatPosition(player.transform.position),
-                    importance: firstCraft ? 3 : 2,
-                    duplicateKey: "craft:" + craftedItem,
+                    importance: EventImportance.High,
+                    duplicateKey: "craft-event:" + craftedItem,
                     duplicateCooldownSeconds: 30);
             }
         }
@@ -592,20 +600,32 @@ namespace ValheimSessionChronicle.Core
                 stats.WorkstationsPlaced++;
             }
 
-            if (firstPlacement || workstation || ValheimNames.IsImportantPiece(pieceName))
+            string biome = GetLocalBiome();
+            bool firstCampInBiome = false;
+            if (ChronicleFilters.IsCampPiece(pieceName) && ChronicleFilters.IsValidBiome(biome))
+            {
+                firstCampInBiome = AddUnique(_current.Environment.OutpostBiomes, biome);
+            }
+
+            if (ChronicleFilters.TryGetBuildingMilestone(
+                    pieceName,
+                    biome,
+                    firstPlacement,
+                    firstCampInBiome,
+                    out string description,
+                    out EventImportance importance))
             {
                 _events.Add(
-                    workstation ? EventTypes.WorkstationPlaced : EventTypes.PiecePlaced,
-                    workstation ? EventCategories.Progression : EventCategories.Building,
-                    workstation
-                        ? $"{playerName} postavil workstation {pieceName}."
-                        : $"{playerName} postavil {pieceName}.",
+                    EventTypes.BuildingMilestone,
+                    EventCategories.Building,
+                    description,
                     actor: playerName,
                     target: pieceName,
+                    biome: ChronicleFilters.IsValidBiome(biome) ? biome : string.Empty,
                     position: ValheimNames.FormatPosition(player.transform.position),
-                    importance: workstation ? 3 : 2,
-                    duplicateKey: "piece:" + pieceName,
-                    duplicateCooldownSeconds: workstation ? 10 : 60);
+                    importance: importance,
+                    duplicateKey: "buildingmilestone:" + pieceName + ":" + biome,
+                    duplicateCooldownSeconds: 300);
             }
         }
 
@@ -639,21 +659,22 @@ namespace ValheimSessionChronicle.Core
             stats.ItemsPickedUp++;
             Increment(stats.ItemPickups, itemName);
 
-            if (firstPickup || ValheimNames.IsImportantItem(itemName))
+            if (ChronicleFilters.IsCommonResource(itemName) || !firstPickup || !ValheimNames.IsImportantItem(itemName))
             {
-                _events.Add(
-                    firstPickup ? EventTypes.Discovery : EventTypes.ItemPickedUp,
-                    firstPickup ? EventCategories.Progression : EventCategories.Loot,
-                    firstPickup
-                        ? $"{playerName} poprvé sebral {itemName}."
-                        : $"{playerName} sebral {itemName}.",
-                    actor: playerName,
-                    target: itemName,
-                    position: ValheimNames.FormatPosition(player.transform.position),
-                    importance: firstPickup ? 2 : 1,
-                    duplicateKey: "pickup:" + itemName,
-                duplicateCooldownSeconds: 120);
+                return;
             }
+
+            _events.Add(
+                EventTypes.Discovery,
+                EventCategories.Progression,
+                $"{playerName} objevil důležitý nález: {itemName}.",
+                actor: playerName,
+                target: itemName,
+                biome: GetLocalBiome(),
+                position: ValheimNames.FormatPosition(player.transform.position),
+                importance: EventImportance.High,
+                duplicateKey: "pickup-event:" + itemName,
+                duplicateCooldownSeconds: 120);
         }
 
         public void RecordItemDropPickup(ItemDrop itemDrop, object[] args)
@@ -694,7 +715,7 @@ namespace ValheimSessionChronicle.Core
                 $"Byl vytvořen náhrobek hráče {playerName}.",
                 actor: playerName,
                 position: ValheimNames.FormatPosition(player.transform.position),
-                importance: 3,
+                importance: EventImportance.High,
                 duplicateKey: "tombstone:" + playerName,
                 duplicateCooldownSeconds: 20);
         }
@@ -728,6 +749,34 @@ namespace ValheimSessionChronicle.Core
             return recent;
         }
 
+        private string GetLocalBiome()
+        {
+            Player localPlayer = Player.m_localPlayer;
+            if (localPlayer == null)
+            {
+                return string.Empty;
+            }
+
+            string biome = ValheimNames.GetCurrentBiomeName(localPlayer);
+            return ChronicleFilters.IsValidBiome(biome) ? biome : string.Empty;
+        }
+
+        private static string BuildCombatMilestoneDescription(string playerName, string enemyName, int killCount, string biome, bool dangerousEnemy)
+        {
+            string place = ChronicleFilters.IsValidBiome(biome) ? $" v biomu {biome}" : string.Empty;
+            if (dangerousEnemy && killCount == 1)
+            {
+                return $"{playerName} porazil nebezpečného protivníka {enemyName}{place}.";
+            }
+
+            return $"{playerName} během výpravy porazil už {killCount}x {enemyName}{place}.";
+        }
+
+        private static bool IsMilestoneCount(int count)
+        {
+            return count == 5 || count == 10 || count == 25 || count == 50 || count % 100 == 0;
+        }
+
         private static bool AddUnique(ICollection<string> values, string value)
         {
             if (string.IsNullOrWhiteSpace(value) || values.Contains(value, StringComparer.OrdinalIgnoreCase))
@@ -748,6 +797,22 @@ namespace ValheimSessionChronicle.Core
 
             counts.TryGetValue(key, out int current);
             counts[key] = current + amount;
+        }
+
+        private static void IncrementNested(IDictionary<string, Dictionary<string, int>> counts, string group, string key)
+        {
+            if (string.IsNullOrWhiteSpace(group) || string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            if (!counts.TryGetValue(group, out Dictionary<string, int> nested))
+            {
+                nested = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                counts[group] = nested;
+            }
+
+            Increment(nested, key);
         }
 
         private bool ShouldCount(string key, TimeSpan cooldown)

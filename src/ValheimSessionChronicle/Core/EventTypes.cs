@@ -25,12 +25,14 @@ namespace ValheimSessionChronicle.Core
         public const string DayNightChanged = "day_night_changed";
         public const string BossKilled = "boss_killed";
         public const string EnemyKilled = "enemy_killed";
+        public const string CombatMilestone = "combat_milestone";
         public const string CombatMoment = "combat_moment";
         public const string PortalUsed = "portal_used";
         public const string Sleeping = "sleeping";
         public const string ShipUsed = "ship_used";
         public const string Crafting = "crafting";
         public const string PiecePlaced = "piece_placed";
+        public const string BuildingMilestone = "building_milestone";
         public const string WorkstationPlaced = "workstation_placed";
         public const string ItemPickedUp = "item_picked_up";
         public const string Discovery = "discovery";

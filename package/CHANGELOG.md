@@ -2,4 +2,5 @@
 
 ## 1.0.0
 
-- Initial Thunderstore-ready package layout.
+- Initial package layout.
+- Chronicle-style TXT report with debug JSON export disabled by default.

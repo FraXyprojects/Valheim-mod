@@ -4,6 +4,6 @@
 
 - Initial project structure.
 - Client-side session tracking architecture.
-- Czech TXT reports and raw JSON exports.
+- Czech TXT chronicles with debug JSON export disabled by default.
 - Defensive Harmony patches for session, player, combat, building, crafting, travel, and environment activity.
 - Optional simple Discord webhook output.

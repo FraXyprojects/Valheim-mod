@@ -6,8 +6,9 @@ namespace ValheimSessionChronicle.Configuration
     {
         public ConfigEntry<bool> EnableDiscordWebhook { get; }
         public ConfigEntry<string> DiscordWebhookURL { get; }
-        public ConfigEntry<bool> SaveJSON { get; }
         public ConfigEntry<bool> SaveTXT { get; }
+        public ConfigEntry<bool> EnableDebugJsonExport { get; }
+        public ConfigEntry<bool> IncludeCompactTimeline { get; }
         public ConfigEntry<bool> EnableVerboseLogging { get; }
         public ConfigEntry<bool> TrackEnvironment { get; }
         public ConfigEntry<bool> TrackCombat { get; }
@@ -20,13 +21,19 @@ namespace ValheimSessionChronicle.Configuration
                 "Output",
                 nameof(SaveTXT),
                 true,
-                "Save a Czech human-readable TXT report after disconnect.");
+                "Save one Czech human-readable TXT chronicle after disconnect.");
 
-            SaveJSON = config.Bind(
+            EnableDebugJsonExport = config.Bind(
+                "Debug",
+                nameof(EnableDebugJsonExport),
+                false,
+                "Save raw debug JSON session data after disconnect. Disabled by default to keep one clean TXT chronicle per session.");
+
+            IncludeCompactTimeline = config.Bind(
                 "Output",
-                nameof(SaveJSON),
+                nameof(IncludeCompactTimeline),
                 true,
-                "Save raw JSON session data after disconnect.");
+                "Include a compact timeline of medium and high importance moments in the final TXT chronicle.");
 
             EnableVerboseLogging = config.Bind(
                 "Diagnostics",
@@ -44,7 +51,7 @@ namespace ValheimSessionChronicle.Configuration
                 "Tracking",
                 nameof(TrackCombat),
                 true,
-                "Track local combat moments, visible enemy deaths, and visible boss deaths.");
+                "Track aggregated combat statistics, dangerous encounters, visible enemy deaths, and visible boss deaths.");
 
             TrackBuilding = config.Bind(
                 "Tracking",
@@ -62,7 +69,7 @@ namespace ValheimSessionChronicle.Configuration
                 "Discord",
                 nameof(EnableDiscordWebhook),
                 false,
-                "Send the generated TXT summary to a Discord webhook after disconnect.");
+                "Send the TXT session summary to a Discord webhook after disconnect.");
 
             DiscordWebhookURL = config.Bind(
                 "Discord",

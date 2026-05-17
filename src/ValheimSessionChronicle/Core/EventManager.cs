@@ -29,7 +29,7 @@ namespace ValheimSessionChronicle.Core
             string target = null,
             string biome = null,
             string position = null,
-            int importance = 1,
+            EventImportance importance = EventImportance.Low,
             string duplicateKey = null,
             double duplicateCooldownSeconds = 0,
             Dictionary<string, string> metadata = null)

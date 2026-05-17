@@ -12,8 +12,12 @@ namespace ValheimSessionChronicle.Utility
     {
         private static readonly string[] ImportantItems =
         {
-            "Bronze", "Iron", "Silver", "Black metal", "Blackmetal", "Flametal", "Dragon egg",
-            "Wishbone", "Crypt key", "Yagluth thing", "Sealbreaker", "Dvergr extractor", "Queen drop"
+            "Queen Bee", "Včelí královna", "Honey", "Med", "Ancient Seed", "Prastaré semeno",
+            "Surtling Core", "Surtlingské jádro", "Bronze", "Bronz", "Iron", "Železo", "Silver", "Stříbro",
+            "Black metal", "Blackmetal", "Černý kov", "Flametal", "Dragon egg", "Dračí vejce", "Wishbone", "Crypt key",
+            "Swamp key", "Yagluth thing", "Sealbreaker", "Dvergr extractor", "Queen drop",
+            "Soft tissue", "Black core", "Eitr", "Carapace", "Mandible", "Sap", "Thunder stone",
+            "Trophy", "Troféj", "trofej"
         };
 
         private static readonly string[] ImportantPieces =
@@ -495,7 +499,21 @@ namespace ValheimSessionChronicle.Utility
 
         public static bool IsImportantItem(string itemName)
         {
-            return ImportantItems.Any(value => itemName.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (string.IsNullOrWhiteSpace(itemName) || ChronicleFilters.IsCommonResource(itemName))
+            {
+                return false;
+            }
+
+            string normalized = ChronicleFilters.NormalizeKey(itemName);
+            string bareItemName = normalized.StartsWith("item", StringComparison.Ordinal)
+                ? normalized.Substring(4)
+                : normalized;
+
+            return ImportantItems.Any(value =>
+            {
+                string important = ChronicleFilters.NormalizeKey(value);
+                return normalized.Contains(important) || bareItemName.Contains(important);
+            });
         }
 
         public static bool IsImportantCraftingMilestone(string itemName)

@@ -30,14 +30,14 @@ namespace ValheimSessionChronicle.Storage
 
             if (config.SaveTXT.Value)
             {
-                result.TxtReport = _reportGenerator.Generate(session);
+                result.TxtReport = _reportGenerator.Generate(session, config.IncludeCompactTimeline.Value);
                 result.TxtPath = Path.Combine(reportsDirectory, baseName + ".txt");
                 File.WriteAllText(result.TxtPath, result.TxtReport);
             }
 
-            if (config.SaveJSON.Value)
+            if (config.EnableDebugJsonExport.Value)
             {
-                result.JsonPath = Path.Combine(reportsDirectory, baseName + ".json");
+                result.JsonPath = Path.Combine(reportsDirectory, baseName + ".debug.json");
                 string json = JsonConvert.SerializeObject(session, Formatting.Indented);
                 File.WriteAllText(result.JsonPath, json);
             }

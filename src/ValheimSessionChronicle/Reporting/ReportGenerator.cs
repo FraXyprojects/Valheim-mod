@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
+using ValheimSessionChronicle.Utility;
 
 namespace ValheimSessionChronicle.Reporting
 {
@@ -12,19 +14,56 @@ namespace ValheimSessionChronicle.Reporting
         private const string Line = "==================================================";
         private const string SectionLine = "--------------------------------------------------";
 
-        public string Generate(SessionData session)
+        private readonly ChronicleStoryGenerator _storyGenerator = new ChronicleStoryGenerator();
+
+        public string Generate(SessionData session, bool includeCompactTimeline)
         {
+            List<SessionEvent> meaningfulEvents = GetMeaningfulEvents(session).ToList();
             StringBuilder builder = new StringBuilder(8192);
             DateTime localStart = session.StartTimeUtc.ToLocalTime();
 
+            AppendHeader(builder);
+            AppendMetadata(builder, session, localStart);
+            AppendPlayers(builder, session);
+            AppendStory(builder, session, meaningfulEvents);
+            AppendHighlights(builder, meaningfulEvents);
+            AppendStats(builder, session);
+
+            if (includeCompactTimeline)
+            {
+                AppendCompactTimeline(builder, meaningfulEvents);
+            }
+
+            AppendLimitations(builder);
             builder.AppendLine(Line);
-            builder.AppendLine("VALHEIM SESSION REPORT");
+            return builder.ToString();
+        }
+
+        private static IEnumerable<SessionEvent> GetMeaningfulEvents(SessionData session)
+        {
+            return session.Events
+                .Where(ChronicleFilters.ShouldAppearInChronicle)
+                .OrderBy(entry => entry.TimestampUtc);
+        }
+
+        private static void AppendHeader(StringBuilder builder)
+        {
+            builder.AppendLine(Line);
+            builder.AppendLine("VALHEIM SESSION CHRONICLE");
             builder.AppendLine(Line);
             builder.AppendLine();
-            builder.AppendLine($"Server: {Fallback(session.ServerName, "Dedicated Server")}");
+        }
+
+        private static void AppendMetadata(StringBuilder builder, SessionData session, DateTime localStart)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("SESSION");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+            builder.AppendLine("Server: " + Fallback(session.ServerName, "Dedicated Server"));
             if (!string.IsNullOrWhiteSpace(session.WorldName))
             {
-                builder.AppendLine($"Svět: {session.WorldName}");
+                builder.AppendLine("Svět: " + session.WorldName);
             }
 
             builder.AppendLine($"Datum: {localStart:dd.MM.yyyy}");
@@ -32,14 +71,6 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine($"Konec: {session.EndTimeUtc.ToLocalTime():HH:mm}");
             builder.AppendLine($"Délka session: {FormatDuration(session.Duration)}");
             builder.AppendLine();
-
-            AppendPlayers(builder, session);
-            AppendMainEvents(builder, session);
-            AppendStats(builder, session);
-            AppendLimitations(builder);
-
-            builder.AppendLine(Line);
-            return builder.ToString();
         }
 
         private static void AppendPlayers(StringBuilder builder, SessionData session)
@@ -64,30 +95,46 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
         }
 
-        private static void AppendMainEvents(StringBuilder builder, SessionData session)
+        private void AppendStory(StringBuilder builder, SessionData session, IReadOnlyList<SessionEvent> meaningfulEvents)
         {
             builder.AppendLine(SectionLine);
-            builder.AppendLine("HLAVNÍ UDÁLOSTI");
+            builder.AppendLine("PŘÍBĚH SESSION");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents));
+            builder.AppendLine();
+        }
+
+        private static void AppendHighlights(StringBuilder builder, IReadOnlyList<SessionEvent> meaningfulEvents)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("HLAVNÍ MOMENTY");
             builder.AppendLine(SectionLine);
             builder.AppendLine();
 
-            List<SessionEvent> events = session.Events
+            List<SessionEvent> highlights = meaningfulEvents
+                .Where(entry => entry.Category != EventCategories.Session &&
+                                entry.Type != EventTypes.PlayerJoined &&
+                                entry.Type != EventTypes.PlayerRespawn)
+                .OrderByDescending(entry => entry.Importance)
+                .ThenBy(entry => entry.TimestampUtc)
+                .Take(12)
                 .OrderBy(entry => entry.TimestampUtc)
                 .ToList();
 
-            if (events.Count == 0)
+            if (highlights.Count == 0)
             {
-                builder.AppendLine("Během session nebyly zaznamenány žádné události.");
-                builder.AppendLine();
-                return;
+                builder.AppendLine("- Žádný výrazný moment nebyl klientem zachycen.");
+            }
+            else
+            {
+                foreach (SessionEvent entry in highlights)
+                {
+                    builder.AppendLine($"- [{entry.TimestampUtc.ToLocalTime():HH:mm}] {entry.Description}");
+                }
             }
 
-            foreach (SessionEvent entry in events)
-            {
-                builder.AppendLine($"[{entry.TimestampUtc.ToLocalTime():HH:mm}]");
-                builder.AppendLine(entry.Description);
-                builder.AppendLine();
-            }
+            builder.AppendLine();
         }
 
         private static void AppendStats(StringBuilder builder, SessionData session)
@@ -98,25 +145,25 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
 
             AppendDeaths(builder, session);
-            AppendPortals(builder, session);
-            AppendBiomes(builder, session);
-            AppendBosses(builder, session);
+            AppendExploration(builder, session);
+            AppendCombat(builder, session);
             AppendBuilding(builder, session);
             AppendCrafting(builder, session);
-            AppendCombat(builder, session);
+            AppendTravel(builder, session);
             AppendEnvironment(builder, session);
         }
 
         private static void AppendDeaths(StringBuilder builder, SessionData session)
         {
             builder.AppendLine("Úmrtí:");
-            IEnumerable<PlayerStats> statsWithDeaths = session.PlayerStats.Values
+            List<PlayerStats> statsWithDeaths = session.PlayerStats.Values
                 .Where(stats => stats.Deaths > 0)
-                .OrderByDescending(stats => stats.Deaths);
+                .OrderByDescending(stats => stats.Deaths)
+                .ToList();
 
-            if (!statsWithDeaths.Any())
+            if (statsWithDeaths.Count == 0)
             {
-                builder.AppendLine("- Žádná zaznamenaná úmrtí");
+                builder.AppendLine("- Bez zaznamenané smrti");
             }
             else
             {
@@ -129,48 +176,78 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
         }
 
-        private static void AppendPortals(StringBuilder builder, SessionData session)
+        private static void AppendExploration(StringBuilder builder, SessionData session)
         {
-            int portalUses = session.PlayerStats.Values.Sum(stats => stats.PortalUses);
-            builder.AppendLine("Portály:");
-            builder.AppendLine($"- Použito {portalUses}x");
-            builder.AppendLine();
-        }
+            builder.AppendLine("Průzkum:");
+            List<string> biomes = session.Environment.BiomesVisited
+                .Where(ChronicleFilters.IsValidBiome)
+                .OrderBy(name => name)
+                .ToList();
 
-        private static void AppendBiomes(StringBuilder builder, SessionData session)
-        {
-            builder.AppendLine("Biomy:");
-            if (session.Environment.BiomesVisited.Count == 0)
+            if (biomes.Count == 0)
             {
-                builder.AppendLine("- Nezjištěno");
+                builder.AppendLine("- Biomy nebyly spolehlivě zjištěny");
             }
             else
             {
-                foreach (string biome in session.Environment.BiomesVisited.OrderBy(name => name))
-                {
-                    builder.AppendLine("- " + biome);
-                }
+                builder.AppendLine("- Navštívené biomy: " + string.Join(", ", biomes));
+            }
+
+            if (session.Environment.OutpostBiomes.Count > 0)
+            {
+                builder.AppendLine("- Založené opěrné body: " + string.Join(", ", session.Environment.OutpostBiomes.OrderBy(name => name)));
             }
 
             builder.AppendLine();
         }
 
-        private static void AppendBosses(StringBuilder builder, SessionData session)
+        private static void AppendCombat(StringBuilder builder, SessionData session)
         {
-            builder.AppendLine("Bossové:");
-            if (session.Environment.BossesKilled.Count == 0)
+            Dictionary<string, int> enemyKills = TopCounts(session.PlayerStats.Values.Select(stats => stats.EnemyKills), 8);
+            int localKills = session.PlayerStats.Values.Sum(stats => stats.EnemiesKilled);
+            int dangerousEncounters = session.PlayerStats.Values.Sum(stats => stats.DangerousEncounters);
+
+            builder.AppendLine("Boj:");
+            builder.AppendLine($"- Potvrzená lokální zabití nepřátel: {localKills}");
+            builder.AppendLine($"- Nebezpečné střety: {dangerousEncounters}");
+
+            if (session.Environment.BossesKilled.Count > 0)
             {
-                builder.AppendLine("- Žádný zaznamenaný boss kill");
+                builder.AppendLine("- Poražení bossové: " + string.Join(", ", session.Environment.BossesKilled.OrderBy(name => name)));
             }
-            else
+
+            AppendTopDictionary(builder, enemyKills, "Nejčastěji poražení nepřátelé");
+            AppendBiomeCombat(builder, session);
+            builder.AppendLine();
+        }
+
+        private static void AppendBiomeCombat(StringBuilder builder, SessionData session)
+        {
+            Dictionary<string, int> totalsByBiome = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (PlayerStats stats in session.PlayerStats.Values)
             {
-                foreach (string boss in session.Environment.BossesKilled.OrderBy(name => name))
+                foreach (KeyValuePair<string, Dictionary<string, int>> biome in stats.EnemyKillsByBiome)
                 {
-                    builder.AppendLine("- " + boss);
+                    if (!ChronicleFilters.IsValidBiome(biome.Key))
+                    {
+                        continue;
+                    }
+
+                    totalsByBiome.TryGetValue(biome.Key, out int current);
+                    totalsByBiome[biome.Key] = current + biome.Value.Values.Sum();
                 }
             }
 
-            builder.AppendLine();
+            if (totalsByBiome.Count == 0)
+            {
+                return;
+            }
+
+            builder.AppendLine("- Aktivita podle biomů:");
+            foreach (KeyValuePair<string, int> pair in totalsByBiome.OrderByDescending(pair => pair.Value).Take(5))
+            {
+                builder.AppendLine($"  - {pair.Key}: {pair.Value} zabití");
+            }
         }
 
         private static void AppendBuilding(StringBuilder builder, SessionData session)
@@ -186,20 +263,26 @@ namespace ValheimSessionChronicle.Reporting
         private static void AppendCrafting(StringBuilder builder, SessionData session)
         {
             int crafts = session.PlayerStats.Values.Sum(stats => stats.Crafts);
+            Dictionary<string, int> importantCrafts = TopCounts(
+                session.PlayerStats.Values.Select(stats => stats.CraftedItems
+                    .Where(pair => ValheimNames.IsImportantCraftingMilestone(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value)),
+                5);
+
             builder.AppendLine("Crafting:");
             builder.AppendLine($"- Vyrobeno předmětů: {crafts}");
-            AppendTopDictionary(builder, TopCounts(session.PlayerStats.Values.Select(stats => stats.CraftedItems)), "Nejčastější výroba");
+            AppendTopDictionary(builder, importantCrafts, "Důležité craftovací milníky");
             builder.AppendLine();
         }
 
-        private static void AppendCombat(StringBuilder builder, SessionData session)
+        private static void AppendTravel(StringBuilder builder, SessionData session)
         {
-            int localKills = session.PlayerStats.Values.Sum(stats => stats.EnemiesKilled);
-            int bossKills = session.PlayerStats.Values.Sum(stats => stats.BossesKilled);
-            builder.AppendLine("Boj:");
-            builder.AppendLine($"- Pravděpodobná lokální zabití nepřátel: {localKills}");
-            builder.AppendLine($"- Boss kill eventy: {bossKills}");
-            builder.AppendLine($"- Viditelná úmrtí nepřátel bez potvrzeného útočníka: {session.Environment.VisibleEnemyDeaths}");
+            int portalUses = session.PlayerStats.Values.Sum(stats => stats.PortalUses);
+            int shipUses = session.PlayerStats.Values.Sum(stats => stats.ShipUses);
+
+            builder.AppendLine("Cestování:");
+            builder.AppendLine($"- Portály použity: {portalUses}x");
+            builder.AppendLine($"- Použití lodního kormidla: {shipUses}x");
             builder.AppendLine();
         }
 
@@ -212,10 +295,35 @@ namespace ValheimSessionChronicle.Reporting
 
             if (session.Environment.WeatherSeen.Count > 0)
             {
-                builder.AppendLine("- Zaznamenané počasí:");
-                foreach (string weather in session.Environment.WeatherSeen.OrderBy(name => name))
+                builder.AppendLine("- Zaznamenané počasí: " + string.Join(", ", session.Environment.WeatherSeen.OrderBy(name => name)));
+            }
+
+            builder.AppendLine();
+        }
+
+        private static void AppendCompactTimeline(StringBuilder builder, IReadOnlyList<SessionEvent> meaningfulEvents)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("KOMPAKTNÍ TIMELINE");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+
+            List<SessionEvent> timeline = meaningfulEvents
+                .Where(entry => entry.Category != EventCategories.Session &&
+                                entry.Type != EventTypes.PlayerJoined &&
+                                entry.Type != EventTypes.PlayerRespawn)
+                .Take(20)
+                .ToList();
+
+            if (timeline.Count == 0)
+            {
+                builder.AppendLine("- Bez výrazných časových bodů.");
+            }
+            else
+            {
+                foreach (SessionEvent entry in timeline)
                 {
-                    builder.AppendLine("  - " + weather);
+                    builder.AppendLine($"[{entry.TimestampUtc.ToLocalTime():HH:mm}] {entry.Description}");
                 }
             }
 
@@ -228,11 +336,11 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine("POZNÁMKA");
             builder.AppendLine(SectionLine);
             builder.AppendLine();
-            builder.AppendLine("Tento report vznikl pouze z klientských dat. Události mimo dohled klienta nebo události, které server klientovi neposlal, nemusí být kompletní.");
+            builder.AppendLine("Tento chronicle vznikl pouze z klientských dat. Události mimo dohled klienta nebo události, které server klientovi neposlal, nemusí být kompletní.");
             builder.AppendLine();
         }
 
-        private static Dictionary<string, int> TopCounts(IEnumerable<Dictionary<string, int>> dictionaries)
+        private static Dictionary<string, int> TopCounts(IEnumerable<Dictionary<string, int>> dictionaries, int limit)
         {
             Dictionary<string, int> totals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (Dictionary<string, int> dictionary in dictionaries)
@@ -247,7 +355,7 @@ namespace ValheimSessionChronicle.Reporting
             return totals
                 .OrderByDescending(pair => pair.Value)
                 .ThenBy(pair => pair.Key)
-                .Take(5)
+                .Take(limit)
                 .ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 

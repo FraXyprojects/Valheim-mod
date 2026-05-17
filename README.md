@@ -7,12 +7,12 @@ The mod is passive. It does not change gameplay, does not require installation o
 ## Features
 
 - Session start and disconnect detection
-- Czech `.txt` session report
-- Raw `.json` session export
+- Czech `.txt` session chronicle with a procedural story summary
+- Optional raw `.debug.json` export for troubleshooting
 - In-memory event batching with no periodic disk writes during play
 - Defensive Harmony patches for Valheim activity hooks
-- Optional Discord webhook POST with the generated TXT summary
-- Config switches for JSON, TXT, verbose logging, environment, combat, building, and crafting tracking
+- Optional Discord webhook POST with the TXT session summary
+- Config switches for TXT output, debug JSON, compact timeline, verbose logging, environment, combat, building, and crafting tracking
 
 Tracked when available client-side:
 
@@ -24,8 +24,8 @@ Tracked when available client-side:
 - sleeping and ship steering interaction
 - local crafting
 - local piece/workstation placement
-- local item pickup milestones
-- local combat moments and likely local enemy kills
+- meaningful local item pickup milestones
+- aggregated combat statistics, dangerous encounters, and likely local enemy kills
 - local tombstone creation
 - weather and day/night transitions
 
@@ -75,8 +75,9 @@ Options:
 
 - `EnableDiscordWebhook`
 - `DiscordWebhookURL`
-- `SaveJSON`
 - `SaveTXT`
+- `EnableDebugJsonExport`
+- `IncludeCompactTimeline`
 - `EnableVerboseLogging`
 - `TrackEnvironment`
 - `TrackCombat`
@@ -89,15 +90,19 @@ Discord support is intentionally simple in phase 1: it sends a plain text code b
 
 ```text
 ==================================================
-VALHEIM SESSION REPORT
+VALHEIM SESSION CHRONICLE
 ==================================================
+
+--------------------------------------------------
+SESSION
+--------------------------------------------------
 
 Server: Dedicated Server
 Datum: 17.05.2026
 Délka session: 3h 24m
 
 --------------------------------------------------
-HRACI
+HRÁČI
 --------------------------------------------------
 
 - FraXson
@@ -105,24 +110,32 @@ HRACI
 - HIMMELHERGOTSON
 
 --------------------------------------------------
-HLAVNI UDALOSTI
+PŘÍBĚH SESSION
 --------------------------------------------------
 
-[19:42]
-FraXson vstoupil do biomu Swamp.
+FraXson se během výpravy vydal z biomu Meadows až do Black Forest.
+V biomu Meadows vznikl malý tábor pro další výpravu.
+Mezi důležité nálezy a milníky patřily Ancient Seed a Surtling Core.
+FraXson v boji porazil hlavně 12x Greydwarf a 4x Skeleton.
+Výprava skončila bez smrti po 3h 24m dobrodružství.
 
-[20:12]
-Boss Bonemass byl porazen.
+--------------------------------------------------
+HLAVNÍ MOMENTY
+--------------------------------------------------
+
+- [19:42] První návštěva biomu Black Forest.
+- [19:55] FraXson během výpravy porazil už 5x Greydwarf v biomu Black Forest.
+- [20:12] Boss Bonemass byl poražen.
 
 --------------------------------------------------
 STATISTIKY
 --------------------------------------------------
 
-Umrti:
+Úmrtí:
 - FraXson: 3
 
-Portaly:
-- Pouzito 7x
+Cestování:
+- Portály použity: 7x
 ```
 
 ## Known Client-Side Limitations
@@ -133,11 +146,12 @@ This mod is not server authoritative. It cannot reliably know everything that ha
 - Enemy kills are only confidently attributed to the local player if the local client recently damaged that enemy before death.
 - Boss kills are detected when the boss death is visible/replicated to the client.
 - Player activity for distant players is incomplete unless the client receives or observes the relevant object/event.
+- Common survival resources such as stone, wood, resin, mushrooms, neck tails, boar meat, leather scraps, and raspberries are intentionally excluded from the final chronicle.
 - Valheim method names can change between updates. Missing Harmony targets are logged and skipped instead of crashing the game.
 
 ## Thunderstore Package
 
-Required package root files are included:
+Package root files:
 
 - `manifest.json`
 - `README.md`

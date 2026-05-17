@@ -15,7 +15,7 @@ namespace ValheimSessionChronicle.Models
         public string Biome { get; set; } = string.Empty;
         public string Position { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public int Importance { get; set; }
+        public EventImportance Importance { get; set; } = EventImportance.Low;
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
     }
 }

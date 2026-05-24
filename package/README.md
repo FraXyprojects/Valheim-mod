@@ -9,6 +9,8 @@ The mod is passive. It does not change gameplay, does not require installation o
 - Session start and disconnect detection
 - Czech `.txt` session chronicle with a procedural story summary
 - Optional raw `.debug.json` export for troubleshooting
+- Robust session lifecycle with reconnect tolerance for temporary ZNet/player rebuilds
+- Combat intensity, survival pressure, expedition profile, and camp classification analysis
 - In-memory event batching with no periodic disk writes during play
 - Defensive Harmony patches for Valheim activity hooks
 - Optional Discord webhook POST with the TXT session summary
@@ -38,9 +40,9 @@ Tracked when available client-side:
    `BepInEx/plugins/ValheimSessionChronicle/ValheimSessionChronicle.dll`
 
 4. Start Valheim and join a server.
-5. Reports are written after disconnect to:
+5. Reports are written after disconnect to a world-specific folder:
 
-   `BepInEx/plugins/ValheimSessionChronicle/Reports/`
+   `BepInEx/plugins/ValheimSessionChronicle/Reports/<WorldName>/`
 
 ## Build Setup
 
@@ -78,6 +80,8 @@ Options:
 - `SaveTXT`
 - `EnableDebugJsonExport`
 - `IncludeCompactTimeline`
+- `ReconnectToleranceSeconds`
+- `DisconnectDebounceSeconds`
 - `EnableVerboseLogging`
 - `TrackEnvironment`
 - `TrackCombat`
@@ -85,6 +89,31 @@ Options:
 - `TrackCrafting`
 
 Discord support is intentionally simple in phase 1: it sends a plain text code block to the configured webhook and truncates to fit Discord message limits.
+
+## World Memory
+
+ValheimSessionChronicle keeps lightweight best-effort memory per world. This is not an authoritative world database; it stores only observed persistent information that helps future session chronicles understand continuity.
+
+Folder layout:
+
+```text
+BepInEx/plugins/ValheimSessionChronicle/Reports/
+└── Doupeson/
+    ├── DoupesonWorldMemory.json
+    ├── 2026-05-21_BojovaVyprava_Swamp.txt
+    ├── 2026-05-22_StavitelskaVyprava_Meadows.txt
+    └── Raw/
+        └── 2026-05-21_BojovaVyprava_Swamp_session.debug.json
+```
+
+World memory tracks lightweight observations:
+
+- persistent camp/base clusters and tier evolution
+- important structures such as forge, stonecutter, artisan table, black forge, eitr refinery, galdr table, and blast furnace
+- observed portal names and approximate locations
+- discovered biomes, important items, and boss progression
+
+The memory intentionally does not store every kill, every structure, or raw combat history.
 
 ## Example Report
 
@@ -120,6 +149,15 @@ FraXson v boji porazil hlavně 12x Greydwarf a 4x Skeleton.
 Výprava skončila bez smrti po 3h 24m dobrodružství.
 
 --------------------------------------------------
+CHARAKTER VÝPRAVY
+--------------------------------------------------
+
+- Bojová: 57%
+- Průzkumná: 22%
+- Stavitelská: 14%
+- Námořní: 7%
+
+--------------------------------------------------
 HLAVNÍ MOMENTY
 --------------------------------------------------
 
@@ -147,6 +185,9 @@ This mod is not server authoritative. It cannot reliably know everything that ha
 - Boss kills are detected when the boss death is visible/replicated to the client.
 - Player activity for distant players is incomplete unless the client receives or observes the relevant object/event.
 - Common survival resources such as stone, wood, resin, mushrooms, neck tails, boar meat, leather scraps, and raspberries are intentionally excluded from the final chronicle.
+- HP tracking is client-side best effort. If Valheim does not expose reliable health/damage data for a situation, the chronicle falls back to combat pressure and death statistics.
+- Temporary object rebuilds, ZNet resets, and short reconnects are treated as one continuous play session within `ReconnectToleranceSeconds`.
+- World memory contains only previously observed client-side state. It improves continuity, but it does not prove that unseen structures still exist.
 - Valheim method names can change between updates. Missing Harmony targets are logged and skipped instead of crashing the game.
 
 ## Thunderstore Package
@@ -156,6 +197,10 @@ Package root files:
 - `manifest.json`
 - `README.md`
 - `icon.png`
+
+The final report filename uses the dominant expedition profile and biome, for example:
+
+`2026-05-17_BojovaPruzkumnaVyprava_Swamp.txt`
 
 The build copies the compiled DLL into:
 

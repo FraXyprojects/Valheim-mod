@@ -3,75 +3,118 @@ using System.Collections.Generic;
 using System.Linq;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
+using ValheimSessionChronicle.Reporting.Analysis;
 using ValheimSessionChronicle.Utility;
+using ValheimSessionChronicle.WorldMemory;
 
 namespace ValheimSessionChronicle.Reporting
 {
     public sealed class ChronicleStoryGenerator
     {
+        private readonly NarrativePhaseBuilder _phaseBuilder = new NarrativePhaseBuilder();
+
         // Local procedural story composition. No external service is used; the text is built from
-        // grouped milestones, discoveries, combat aggregates, exploration, and survival stats.
-        public string Generate(SessionData session, IReadOnlyList<SessionEvent> meaningfulEvents)
+        // grouped phases, intensity analysis, discoveries, camp classification, and survival stats.
+        public string Generate(
+            SessionData session,
+            IReadOnlyList<SessionEvent> meaningfulEvents,
+            CombatIntensityResult combat,
+            SurvivalSummary survival,
+            ExpeditionProfileResult profile,
+            IReadOnlyList<CampCluster> camps,
+            WorldMemoryData worldMemory,
+            WorldMemoryUpdateResult memoryUpdate)
         {
-            List<string> sentences = new List<string>();
+            List<string> paragraphs = new List<string>();
             string mainPlayer = GetMainPlayer(session);
 
-            AddBiomeSentence(session, mainPlayer, sentences);
-            AddBuildingSentence(meaningfulEvents, sentences);
-            AddDiscoverySentence(meaningfulEvents, sentences);
-            AddCombatSentence(session, mainPlayer, sentences);
-            AddBossSentence(session, sentences);
-            AddEndingSentence(session, sentences);
-
-            if (sentences.Count == 0)
+            List<string> phases = _phaseBuilder.BuildPhases(session, combat, survival, camps);
+            if (phases.Count > 0)
             {
-                sentences.Add($"{mainPlayer} odehrál klidnou session dlouhou {FormatDuration(session.Duration)} bez výrazných zlomů zaznamenaných klientem.");
+                paragraphs.Add(string.Join(" ", phases));
             }
 
-            return string.Join(" ", sentences);
+            AddWorldMemoryParagraph(worldMemory, memoryUpdate, paragraphs);
+            AddDiscoveryParagraph(meaningfulEvents, paragraphs);
+            AddProfileParagraph(profile, paragraphs);
+            AddCombatDetails(session, mainPlayer, combat, paragraphs);
+            AddEndingParagraph(session, paragraphs);
+
+            if (paragraphs.Count == 0)
+            {
+                paragraphs.Add($"{mainPlayer} odehrál klidnou session dlouhou {FormatDuration(session.Duration)} bez výrazných zlomů zachycených klientem.");
+            }
+
+            return string.Join(Environment.NewLine + Environment.NewLine, paragraphs);
         }
 
-        private static void AddBiomeSentence(SessionData session, string mainPlayer, ICollection<string> sentences)
+        private static void AddWorldMemoryParagraph(WorldMemoryData worldMemory, WorldMemoryUpdateResult memoryUpdate, ICollection<string> paragraphs)
         {
-            List<string> biomes = session.Environment.BiomesVisited
-                .Where(ChronicleFilters.IsValidBiome)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(biome => session.Environment.FirstBiomeVisitUtc.TryGetValue(biome, out DateTime firstSeen) ? firstSeen : DateTime.MaxValue)
-                .ToList();
-
-            if (biomes.Count >= 2)
+            if (memoryUpdate.CampChanges.Count == 0)
             {
-                sentences.Add($"{mainPlayer} se během výpravy vydal z biomu {biomes.First()} až do {biomes.Last()}.");
-            }
-            else if (biomes.Count == 1)
-            {
-                sentences.Add($"{mainPlayer} strávil výpravu hlavně v biomu {biomes[0]}.");
-            }
-        }
+                if (worldMemory.SessionCount > 1 && worldMemory.Camps.Count > 0)
+                {
+                    paragraphs.Add($"Kronika navazuje na dříve pozorovaný svět, ve kterém už je známo {worldMemory.Camps.Count} táborů nebo základen.");
+                }
 
-        private static void AddBuildingSentence(IReadOnlyList<SessionEvent> meaningfulEvents, ICollection<string> sentences)
-        {
-            List<SessionEvent> building = meaningfulEvents
-                .Where(entry => entry.Type == EventTypes.BuildingMilestone)
-                .Take(3)
-                .ToList();
-
-            if (building.Count == 0)
-            {
                 return;
             }
 
-            if (building.Count == 1)
+            PersistentCampChange strongest = memoryUpdate.CampChanges
+                .OrderByDescending(change => change.NewTier)
+                .ThenByDescending(change => change.AddedStructures)
+                .First();
+
+            string biome = ChronicleFilters.IsValidBiome(strongest.Biome) ? $" v biomu {strongest.Biome}" : string.Empty;
+            if (strongest.IsNewCamp)
             {
-                sentences.Add(building[0].Description);
+                paragraphs.Add($"Na mapě světa se objevil nový opěrný bod: {strongest.NewTierName}{biome}.");
                 return;
             }
 
-            sentences.Add("Během cesty vzniklo několik důležitých zázemí: " +
-                          string.Join(" ", building.Select(entry => entry.Description)));
+            if (strongest.IsTierUpgrade)
+            {
+                paragraphs.Add($"Dříve známý {strongest.PreviousTierName}{biome} se během session proměnil v {strongest.NewTierName}.");
+                return;
+            }
+
+            List<string> additions = new List<string>();
+            if (strongest.AddedForge)
+            {
+                additions.Add("kovárnu");
+            }
+
+            if (strongest.AddedDefenses)
+            {
+                additions.Add("obranné prvky");
+            }
+
+            if (strongest.AddedStorage)
+            {
+                additions.Add("skladování");
+            }
+
+            if (strongest.AddedPortal)
+            {
+                additions.Add("portál");
+            }
+
+            if (strongest.AddedAdvancedStation)
+            {
+                additions.Add("pokročilé řemeslné vybavení");
+            }
+
+            if (additions.Count > 0)
+            {
+                paragraphs.Add($"Skupina pokračovala v rozšiřování známého místa{biome} o {JoinCzech(additions)}.");
+            }
+            else if (strongest.AddedStructures > 0)
+            {
+                paragraphs.Add($"Známé zázemí{biome} bylo dál rozšířeno a upevněno.");
+            }
         }
 
-        private static void AddDiscoverySentence(IReadOnlyList<SessionEvent> meaningfulEvents, ICollection<string> sentences)
+        private static void AddDiscoveryParagraph(IReadOnlyList<SessionEvent> meaningfulEvents, ICollection<string> paragraphs)
         {
             List<string> discoveries = meaningfulEvents
                 .Where(entry => (entry.Type == EventTypes.Discovery || entry.Type == EventTypes.Crafting) &&
@@ -87,71 +130,64 @@ namespace ValheimSessionChronicle.Reporting
                 return;
             }
 
-            sentences.Add(discoveries.Count == 1
+            paragraphs.Add(discoveries.Count == 1
                 ? $"Nejdůležitějším nálezem session byl {discoveries[0]}."
                 : $"Mezi důležité nálezy a milníky patřily {JoinCzech(discoveries)}.");
         }
 
-        private static void AddCombatSentence(SessionData session, string mainPlayer, ICollection<string> sentences)
+        private static void AddProfileParagraph(ExpeditionProfileResult profile, ICollection<string> paragraphs)
+        {
+            List<ExpeditionProfileScore> dominant = profile.DominantScores.ToList();
+            if (dominant.Count == 0)
+            {
+                return;
+            }
+
+            paragraphs.Add("Charakter výpravy nejvíc určovaly tyto prvky: " +
+                           string.Join(", ", dominant.Select(score => $"{score.Label.ToLowerInvariant()} ({score.Percentage} %)")) + ".");
+        }
+
+        private static void AddCombatDetails(SessionData session, string mainPlayer, CombatIntensityResult combat, ICollection<string> paragraphs)
         {
             Dictionary<string, int> enemyKills = MergeCounts(session.PlayerStats.Values.Select(stats => stats.EnemyKills));
-            int dangerousEncounters = session.PlayerStats.Values.Sum(stats => stats.DangerousEncounters);
-
-            if (enemyKills.Count == 0 && dangerousEncounters == 0)
+            if (enemyKills.Count == 0)
             {
                 return;
             }
 
-            if (enemyKills.Count > 0)
-            {
-                List<string> topKills = enemyKills
-                    .OrderByDescending(pair => pair.Value)
-                    .ThenBy(pair => pair.Key)
-                    .Take(3)
-                    .Select(pair => $"{pair.Value}x {pair.Key}")
-                    .ToList();
+            List<string> topKills = enemyKills
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key)
+                .Take(IsAtLeast(combat.Tier, CombatIntensityTier.High) ? 2 : 3)
+                .Select(pair => $"{pair.Value}x {pair.Key}")
+                .ToList();
 
-                sentences.Add($"{mainPlayer} v boji porazil hlavně {JoinCzech(topKills)}.");
-            }
-
-            if (dangerousEncounters > 0 && session.Environment.NightTransitions > 0 && session.PlayerStats.Values.Sum(stats => stats.Deaths) == 0)
+            if (IsAtLeast(combat.Tier, CombatIntensityTier.High))
             {
-                sentences.Add($"{mainPlayer} přežil nebezpečnou noční výpravu bez smrti.");
+                paragraphs.Add($"{mainPlayer} a okolní skupina čelili dlouhému tlaku nepřátel; nejčastěji padali {JoinCzech(topKills)}.");
             }
-            else if (dangerousEncounters > 0)
+            else
             {
-                sentences.Add($"Výprava zahrnovala {dangerousEncounters} nebezpečných střetů, které stály za zapamatování.");
+                paragraphs.Add($"{mainPlayer} během cesty porazil hlavně {JoinCzech(topKills)}.");
             }
         }
 
-        private static void AddBossSentence(SessionData session, ICollection<string> sentences)
-        {
-            if (session.Environment.BossesKilled.Count == 0)
-            {
-                return;
-            }
-
-            sentences.Add(session.Environment.BossesKilled.Count == 1
-                ? $"Vrcholným momentem bylo poražení bosse {session.Environment.BossesKilled[0]}."
-                : $"Vrcholnými momenty bylo poražení bossů {JoinCzech(session.Environment.BossesKilled)}.");
-        }
-
-        private static void AddEndingSentence(SessionData session, ICollection<string> sentences)
+        private static void AddEndingParagraph(SessionData session, ICollection<string> paragraphs)
         {
             int deaths = session.PlayerStats.Values.Sum(stats => stats.Deaths);
             string duration = FormatDuration(session.Duration);
 
             if (deaths == 0)
             {
-                sentences.Add($"Výprava skončila bez smrti po {duration} dobrodružství.");
+                paragraphs.Add($"Výprava skončila bez smrti po {duration} dobrodružství.");
             }
             else if (deaths == 1)
             {
-                sentences.Add($"Výprava trvala {duration} a vyžádala si jedno úmrtí.");
+                paragraphs.Add($"Výprava trvala {duration} a vyžádala si jedno úmrtí.");
             }
             else
             {
-                sentences.Add($"Výprava trvala {duration} a vyžádala si {deaths} úmrtí.");
+                paragraphs.Add($"Výprava trvala {duration} a vyžádala si {deaths} úmrtí.");
             }
         }
 
@@ -203,6 +239,11 @@ namespace ValheimSessionChronicle.Reporting
             }
 
             return $"{Math.Max(0, duration.Minutes)}m {Math.Max(0, duration.Seconds)}s";
+        }
+
+        private static bool IsAtLeast(CombatIntensityTier actual, CombatIntensityTier expected)
+        {
+            return (int)actual >= (int)expected;
         }
     }
 }

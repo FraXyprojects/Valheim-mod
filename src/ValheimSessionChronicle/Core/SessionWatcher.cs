@@ -9,6 +9,7 @@ namespace ValheimSessionChronicle.Core
     public sealed class SessionWatcher : MonoBehaviour
     {
         private SessionManager _sessionManager;
+        private SessionLifecycleManager _lifecycleManager;
         private ChronicleConfig _config;
         private float _nextSessionCheck;
         private float _nextPlayersCheck;
@@ -18,15 +19,16 @@ namespace ValheimSessionChronicle.Core
         private string _lastWeather;
         private bool? _lastNightState;
 
-        public void Initialize(SessionManager sessionManager, ChronicleConfig config)
+        public void Initialize(SessionManager sessionManager, SessionLifecycleManager lifecycleManager, ChronicleConfig config)
         {
             _sessionManager = sessionManager;
+            _lifecycleManager = lifecycleManager;
             _config = config;
         }
 
         private void Update()
         {
-            if (_sessionManager == null)
+            if (_sessionManager == null || _lifecycleManager == null)
             {
                 return;
             }
@@ -66,17 +68,14 @@ namespace ValheimSessionChronicle.Core
         {
             try
             {
-                bool inSession = ValheimState.IsInPlayableSession();
-                if (inSession && !_sessionManager.IsActive)
+                bool wasActive = _sessionManager.IsActive;
+                _lifecycleManager.ObserveWorldState();
+
+                if (!wasActive && _sessionManager.IsActive)
                 {
                     _lastBiome = null;
                     _lastWeather = null;
                     _lastNightState = null;
-                    _sessionManager.StartSession("Watcher detekoval lokálního hráče a ZNet.");
-                }
-                else if (!inSession && _sessionManager.IsActive)
-                {
-                    _sessionManager.EndSession("Klient opustil aktivní svět.", DisconnectReason.WatcherLostSession);
                 }
             }
             catch (Exception ex)

@@ -25,6 +25,7 @@ namespace ValheimSessionChronicle
 
         internal ChronicleConfig ModConfig { get; private set; }
         internal SessionManager SessionManager { get; private set; }
+        internal SessionLifecycleManager LifecycleManager { get; private set; }
 
         private Harmony _harmony;
         private SessionWatcher _watcher;
@@ -40,9 +41,10 @@ namespace ValheimSessionChronicle
                 ModConfig,
                 new SessionStorage(new ReportGenerator()),
                 new DiscordWebhookClient());
+            LifecycleManager = new SessionLifecycleManager(SessionManager, ModConfig);
 
             _watcher = gameObject.AddComponent<SessionWatcher>();
-            _watcher.Initialize(SessionManager, ModConfig);
+            _watcher.Initialize(SessionManager, LifecycleManager, ModConfig);
             DontDestroyOnLoad(gameObject);
 
             _harmony = new Harmony(PluginGuid);
@@ -74,7 +76,7 @@ namespace ValheimSessionChronicle
         {
             try
             {
-                SessionManager?.EndSession(reason, disconnectReason);
+                LifecycleManager?.ForceFinalize(reason, disconnectReason);
             }
             catch (Exception ex)
             {

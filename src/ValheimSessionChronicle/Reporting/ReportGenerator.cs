@@ -5,7 +5,9 @@ using System.Linq;
 using System.Text;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
+using ValheimSessionChronicle.Reporting.Analysis;
 using ValheimSessionChronicle.Utility;
+using ValheimSessionChronicle.WorldMemory;
 
 namespace ValheimSessionChronicle.Reporting
 {
@@ -15,19 +17,33 @@ namespace ValheimSessionChronicle.Reporting
         private const string SectionLine = "--------------------------------------------------";
 
         private readonly ChronicleStoryGenerator _storyGenerator = new ChronicleStoryGenerator();
+        private readonly CombatIntensityAnalyzer _combatAnalyzer = new CombatIntensityAnalyzer();
+        private readonly SurvivalAnalyzer _survivalAnalyzer = new SurvivalAnalyzer();
+        private readonly ExpeditionProfileAnalyzer _profileAnalyzer = new ExpeditionProfileAnalyzer();
+        private readonly CampClassificationSystem _campClassification = new CampClassificationSystem();
 
-        public string Generate(SessionData session, bool includeCompactTimeline)
+        public string Generate(
+            SessionData session,
+            bool includeCompactTimeline,
+            WorldMemoryData worldMemory,
+            WorldMemoryUpdateResult memoryUpdate)
         {
-            List<SessionEvent> meaningfulEvents = GetMeaningfulEvents(session).ToList();
+            List<SessionEvent> meaningfulEvents = GetMeaningfulEvents(session, memoryUpdate).ToList();
+            CombatIntensityResult combat = _combatAnalyzer.Analyze(session);
+            SurvivalSummary survival = _survivalAnalyzer.Analyze(session);
+            ExpeditionProfileResult profile = _profileAnalyzer.Analyze(session, combat, survival);
+            List<CampCluster> camps = _campClassification.Classify(session);
             StringBuilder builder = new StringBuilder(8192);
             DateTime localStart = session.StartTimeUtc.ToLocalTime();
 
             AppendHeader(builder);
             AppendMetadata(builder, session, localStart);
             AppendPlayers(builder, session);
-            AppendStory(builder, session, meaningfulEvents);
+            AppendStory(builder, session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate);
+            AppendWorldContinuity(builder, worldMemory, memoryUpdate);
+            AppendExpeditionProfile(builder, profile);
             AppendHighlights(builder, meaningfulEvents);
-            AppendStats(builder, session);
+            AppendStats(builder, session, combat, survival, camps);
 
             if (includeCompactTimeline)
             {
@@ -39,11 +55,40 @@ namespace ValheimSessionChronicle.Reporting
             return builder.ToString();
         }
 
-        private static IEnumerable<SessionEvent> GetMeaningfulEvents(SessionData session)
+        private static IEnumerable<SessionEvent> GetMeaningfulEvents(SessionData session, WorldMemoryUpdateResult memoryUpdate)
         {
             return session.Events
                 .Where(ChronicleFilters.ShouldAppearInChronicle)
+                .Where(entry => !IsKnownWorldMemoryDuplicate(entry, memoryUpdate))
                 .OrderBy(entry => entry.TimestampUtc);
+        }
+
+        private static bool IsKnownWorldMemoryDuplicate(SessionEvent entry, WorldMemoryUpdateResult memoryUpdate)
+        {
+            if (entry.Type == EventTypes.Discovery)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.Biome) && memoryUpdate.PreviouslyKnownBiomes.Contains(entry.Biome))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(entry.Target) && memoryUpdate.PreviouslyKnownImportantItems.Contains(entry.Target))
+                {
+                    return true;
+                }
+            }
+
+            if (entry.Type == EventTypes.BossKilled && memoryUpdate.PreviouslyKnownBosses.Contains(entry.Target))
+            {
+                return true;
+            }
+
+            if (entry.Type == EventTypes.PortalUsed && memoryUpdate.NewPortals.Count == 0)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static void AppendHeader(StringBuilder builder)
@@ -95,13 +140,79 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
         }
 
-        private void AppendStory(StringBuilder builder, SessionData session, IReadOnlyList<SessionEvent> meaningfulEvents)
+        private void AppendStory(
+            StringBuilder builder,
+            SessionData session,
+            IReadOnlyList<SessionEvent> meaningfulEvents,
+            CombatIntensityResult combat,
+            SurvivalSummary survival,
+            ExpeditionProfileResult profile,
+            IReadOnlyList<CampCluster> camps,
+            WorldMemoryData worldMemory,
+            WorldMemoryUpdateResult memoryUpdate)
         {
             builder.AppendLine(SectionLine);
             builder.AppendLine("PŘÍBĚH SESSION");
             builder.AppendLine(SectionLine);
             builder.AppendLine();
-            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents));
+            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate));
+            builder.AppendLine();
+        }
+
+        private static void AppendWorldContinuity(StringBuilder builder, WorldMemoryData worldMemory, WorldMemoryUpdateResult memoryUpdate)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("PAMĚŤ SVĚTA");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+
+            builder.AppendLine($"- Zaznamenané session v tomto světě: {worldMemory.SessionCount}");
+            builder.AppendLine($"- Známé tábory/základny: {worldMemory.Camps.Count}");
+            builder.AppendLine($"- Známé portály: {worldMemory.Portals.Count}");
+
+            if (memoryUpdate.CampChanges.Count > 0)
+            {
+                builder.AppendLine("- Vývoj míst v této session:");
+                foreach (PersistentCampChange change in memoryUpdate.CampChanges.Take(5))
+                {
+                    string biome = ChronicleFilters.IsValidBiome(change.Biome) ? $" v biomu {change.Biome}" : string.Empty;
+                    if (change.IsNewCamp)
+                    {
+                        builder.AppendLine($"  - Nově zaznamenán {change.NewTierName}{biome}.");
+                    }
+                    else if (change.IsTierUpgrade)
+                    {
+                        builder.AppendLine($"  - {change.PreviousTierName} se rozrostl na {change.NewTierName}{biome}.");
+                    }
+                    else
+                    {
+                        builder.AppendLine($"  - {change.NewTierName}{biome} byl rozšířen o {change.AddedStructures} dílů.");
+                    }
+                }
+            }
+
+            builder.AppendLine();
+        }
+
+        private static void AppendExpeditionProfile(StringBuilder builder, ExpeditionProfileResult profile)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("CHARAKTER VÝPRAVY");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+
+            if (profile.Scores.Count == 0)
+            {
+                builder.AppendLine("- Nedostatek dat pro profil výpravy.");
+            }
+            else
+            {
+                foreach (ExpeditionProfileScore score in profile.Scores.Where(score => score.Percentage >= 3).Take(8))
+                {
+                    builder.AppendLine($"- {score.Label}: {score.Percentage}%");
+                }
+            }
+
             builder.AppendLine();
         }
 
@@ -137,7 +248,12 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
         }
 
-        private static void AppendStats(StringBuilder builder, SessionData session)
+        private static void AppendStats(
+            StringBuilder builder,
+            SessionData session,
+            CombatIntensityResult combat,
+            SurvivalSummary survival,
+            IReadOnlyList<CampCluster> camps)
         {
             builder.AppendLine(SectionLine);
             builder.AppendLine("STATISTIKY");
@@ -146,8 +262,8 @@ namespace ValheimSessionChronicle.Reporting
 
             AppendDeaths(builder, session);
             AppendExploration(builder, session);
-            AppendCombat(builder, session);
-            AppendBuilding(builder, session);
+            AppendCombat(builder, session, combat, survival);
+            AppendBuilding(builder, session, camps);
             AppendCrafting(builder, session);
             AppendTravel(builder, session);
             AppendEnvironment(builder, session);
@@ -201,7 +317,7 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine();
         }
 
-        private static void AppendCombat(StringBuilder builder, SessionData session)
+        private static void AppendCombat(StringBuilder builder, SessionData session, CombatIntensityResult combat, SurvivalSummary survival)
         {
             Dictionary<string, int> enemyKills = TopCounts(session.PlayerStats.Values.Select(stats => stats.EnemyKills), 8);
             int localKills = session.PlayerStats.Values.Sum(stats => stats.EnemiesKilled);
@@ -210,6 +326,21 @@ namespace ValheimSessionChronicle.Reporting
             builder.AppendLine("Boj:");
             builder.AppendLine($"- Potvrzená lokální zabití nepřátel: {localKills}");
             builder.AppendLine($"- Nebezpečné střety: {dangerousEncounters}");
+            builder.AppendLine($"- Intenzita boje: {TranslateCombatTier(combat.Tier)} ({combat.Score:0})");
+            if (ChronicleFilters.IsValidBiome(combat.DominantCombatBiome))
+            {
+                builder.AppendLine($"- Nejtvrdší bojový biome: {combat.DominantCombatBiome}");
+            }
+
+            if (survival.HasHealthData)
+            {
+                builder.AppendLine($"- Nejnižší zaznamenané HP: {survival.LowestHealth:0} ({survival.LowestHealthPercent:P0})");
+                builder.AppendLine($"- Near-death momenty: {survival.NearDeathMoments}");
+            }
+            else
+            {
+                builder.AppendLine("- HP tracking: nedostatek spolehlivých klientských dat");
+            }
 
             if (session.Environment.BossesKilled.Count > 0)
             {
@@ -250,13 +381,22 @@ namespace ValheimSessionChronicle.Reporting
             }
         }
 
-        private static void AppendBuilding(StringBuilder builder, SessionData session)
+        private static void AppendBuilding(StringBuilder builder, SessionData session, IReadOnlyList<CampCluster> camps)
         {
             int pieces = session.PlayerStats.Values.Sum(stats => stats.PiecesPlacedTotal);
             int workstations = session.PlayerStats.Values.Sum(stats => stats.WorkstationsPlaced);
             builder.AppendLine("Stavba:");
             builder.AppendLine($"- Postavené díly: {pieces}");
             builder.AppendLine($"- Řemeslné stanice: {workstations}");
+            if (camps.Count > 0)
+            {
+                builder.AppendLine("- Klasifikované tábory/základny:");
+                foreach (CampCluster camp in camps.Take(5))
+                {
+                    string biome = ChronicleFilters.IsValidBiome(camp.Biome) ? $" ({camp.Biome})" : string.Empty;
+                    builder.AppendLine($"  - {camp.Name}{biome}: {camp.StructureCount} dílů");
+                }
+            }
             builder.AppendLine();
         }
 
@@ -386,6 +526,21 @@ namespace ValheimSessionChronicle.Reporting
         private static string Fallback(string value, string fallback)
         {
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+
+        private static string TranslateCombatTier(CombatIntensityTier tier)
+        {
+            switch (tier)
+            {
+                case CombatIntensityTier.Extreme:
+                    return "extrémní";
+                case CombatIntensityTier.High:
+                    return "vysoká";
+                case CombatIntensityTier.Medium:
+                    return "střední";
+                default:
+                    return "nízká";
+            }
         }
     }
 }

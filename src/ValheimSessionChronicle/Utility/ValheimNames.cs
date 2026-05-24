@@ -159,6 +159,56 @@ namespace ValheimSessionChronicle.Utility
             return attacker as Character;
         }
 
+        public static float GetCharacterHealth(Character character)
+        {
+            if (character == null)
+            {
+                return 0f;
+            }
+
+            object health = SafeInvoke(character, "GetHealth");
+            if (health is float healthValue)
+            {
+                return healthValue;
+            }
+
+            return ValheimReflection.GetMemberValue<float>(character, "m_health");
+        }
+
+        public static float GetCharacterMaxHealth(Character character)
+        {
+            if (character == null)
+            {
+                return 0f;
+            }
+
+            object maxHealth = SafeInvoke(character, "GetMaxHealth");
+            if (maxHealth is float maxHealthValue)
+            {
+                return maxHealthValue;
+            }
+
+            return ValheimReflection.GetMemberValue<float>(character, "m_maxHealth");
+        }
+
+        public static float GetHitTotalDamage(object hitData)
+        {
+            if (hitData == null)
+            {
+                return 0f;
+            }
+
+            object total = SafeInvoke(hitData, "GetTotalDamage");
+            if (total is float totalValue)
+            {
+                return totalValue;
+            }
+
+            object damage = ValheimReflection.GetMemberValue(hitData, "m_damage");
+            object damageTotal = SafeInvoke(damage, "GetTotalDamage");
+            return damageTotal is float damageTotalValue ? damageTotalValue : 0f;
+        }
+
         public static string GetCurrentBiomeName(Player player)
         {
             if (player == null)

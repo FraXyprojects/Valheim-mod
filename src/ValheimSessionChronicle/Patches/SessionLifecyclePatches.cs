@@ -19,7 +19,7 @@ namespace ValheimSessionChronicle.Patches
         {
             try
             {
-                ValheimSessionChroniclePlugin.Instance?.SessionManager?.EndSession(reason, disconnectReason);
+                ValheimSessionChroniclePlugin.Instance?.LifecycleManager?.NotifyDisconnectSignal(reason, disconnectReason);
             }
             catch (Exception ex)
             {

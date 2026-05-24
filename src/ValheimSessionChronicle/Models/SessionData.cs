@@ -16,8 +16,14 @@ namespace ValheimSessionChronicle.Models
         public string LocalPlayerName { get; set; } = string.Empty;
         public bool IsMultiplayerClient { get; set; }
         public string DisconnectReason { get; set; } = string.Empty;
+        public int ReconnectCount { get; set; }
+        public DateTime LastWorldActivityUtc { get; set; }
+        public DateTime LastConfirmedNetworkUtc { get; set; }
         public List<string> Players { get; set; } = new List<string>();
         public List<SessionEvent> Events { get; set; } = new List<SessionEvent>();
+        public List<CombatActivitySample> CombatSamples { get; set; } = new List<CombatActivitySample>();
+        public List<BuildActivitySample> BuildSamples { get; set; } = new List<BuildActivitySample>();
+        public List<PortalActivitySample> PortalSamples { get; set; } = new List<PortalActivitySample>();
         public Dictionary<string, PlayerStats> PlayerStats { get; set; } = new Dictionary<string, PlayerStats>(StringComparer.OrdinalIgnoreCase);
         public EnvironmentStats Environment { get; set; } = new EnvironmentStats();
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();

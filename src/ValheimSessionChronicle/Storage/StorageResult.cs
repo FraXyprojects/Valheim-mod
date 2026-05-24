@@ -4,6 +4,7 @@ namespace ValheimSessionChronicle.Storage
     {
         public string TxtPath { get; set; } = string.Empty;
         public string JsonPath { get; set; } = string.Empty;
+        public string WorldMemoryPath { get; set; } = string.Empty;
         public string TxtReport { get; set; } = string.Empty;
     }
 }

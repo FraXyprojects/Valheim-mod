@@ -9,7 +9,31 @@ namespace ValheimSessionChronicle.Utility
         {
             try
             {
-                return ZNet.instance != null && Player.m_localPlayer != null;
+                return HasNetwork() && HasLocalPlayer();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool HasNetwork()
+        {
+            try
+            {
+                return ZNet.instance != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool HasLocalPlayer()
+        {
+            try
+            {
+                return Player.m_localPlayer != null;
             }
             catch
             {

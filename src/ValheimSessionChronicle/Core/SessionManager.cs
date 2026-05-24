@@ -36,6 +36,35 @@ namespace ValheimSessionChronicle.Core
 
         public SessionData Current => _current;
 
+        public void TouchNetwork(DateTime timestampUtc)
+        {
+            if (_current != null)
+            {
+                _current.LastConfirmedNetworkUtc = timestampUtc;
+            }
+        }
+
+        public void TouchWorld(DateTime timestampUtc)
+        {
+            if (_current != null)
+            {
+                _current.LastWorldActivityUtc = timestampUtc;
+                _current.LastConfirmedNetworkUtc = timestampUtc;
+            }
+        }
+
+        public void RegisterReconnect(DateTime timestampUtc, string reason)
+        {
+            if (_current == null)
+            {
+                return;
+            }
+
+            _current.ReconnectCount++;
+            TouchWorld(timestampUtc);
+            ChronicleLogger.Info($"Session recovered after temporary connection loss. Reconnects={_current.ReconnectCount}. {reason}");
+        }
+
         public void StartSession(string explicitReason = null)
         {
             if (_current != null)
@@ -49,6 +78,8 @@ namespace ValheimSessionChronicle.Core
             {
                 ModVersion = ValheimSessionChroniclePlugin.PluginVersion,
                 StartTimeUtc = DateTime.UtcNow,
+                LastWorldActivityUtc = DateTime.UtcNow,
+                LastConfirmedNetworkUtc = DateTime.UtcNow,
                 LocalPlayerName = localPlayer,
                 ServerName = ValheimNames.GetServerName(),
                 WorldName = ValheimNames.GetWorldName(),
@@ -104,8 +135,8 @@ namespace ValheimSessionChronicle.Core
                 }
 
                 ChronicleLogger.Info(string.IsNullOrWhiteSpace(result.JsonPath)
-                    ? $"Session ended. TXT='{result.TxtPath}'."
-                    : $"Session ended. TXT='{result.TxtPath}', debug JSON='{result.JsonPath}'.");
+                    ? $"Session ended. TXT='{result.TxtPath}', world memory='{result.WorldMemoryPath}'."
+                    : $"Session ended. TXT='{result.TxtPath}', debug JSON='{result.JsonPath}', world memory='{result.WorldMemoryPath}'.");
             }
             catch (Exception ex)
             {
@@ -163,6 +194,14 @@ namespace ValheimSessionChronicle.Core
 
             PlayerStats stats = EnsurePlayerStats(playerName);
             stats.Deaths++;
+            _current.CombatSamples.Add(new CombatActivitySample
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Actor = playerName,
+                Biome = GetLocalBiome(),
+                CausedDeath = true,
+                HealthAfterHit = 0f
+            });
 
             _events.Add(
                 EventTypes.PlayerDeath,
@@ -310,10 +349,29 @@ namespace ValheimSessionChronicle.Core
                 stats.CombatMoments++;
 
                 string attackerName = ValheimNames.GetCharacterName(attacker);
+                float health = ValheimNames.GetCharacterHealth(localPlayer);
+                float maxHealth = ValheimNames.GetCharacterMaxHealth(localPlayer);
+                float incomingDamage = ValheimNames.GetHitTotalDamage(hitData);
+                bool nearDeath = IsNearDeath(health, maxHealth);
+                string biome = GetLocalBiome();
+
+                _current.CombatSamples.Add(new CombatActivitySample
+                {
+                    TimestampUtc = DateTime.UtcNow,
+                    Actor = localName,
+                    EnemyName = attackerName,
+                    Biome = biome,
+                    IsEliteEnemy = ChronicleFilters.IsDangerousEnemy(attackerName),
+                    IsIncomingDamage = true,
+                    IncomingDamage = incomingDamage,
+                    HealthAfterHit = health,
+                    MaxHealth = maxHealth,
+                    IsNearDeath = nearDeath
+                });
+
                 if (ShouldCount("danger:" + attackerName, TimeSpan.FromSeconds(90)))
                 {
                     stats.DangerousEncounters++;
-                    string biome = GetLocalBiome();
                     if (ChronicleFilters.IsValidBiome(biome))
                     {
                         Increment(stats.DangerousEncountersByBiome, biome);
@@ -371,6 +429,16 @@ namespace ValheimSessionChronicle.Core
 
                 int killCount = stats.EnemyKills[characterName];
                 bool dangerousEnemy = ChronicleFilters.IsDangerousEnemy(characterName);
+                _current.CombatSamples.Add(new CombatActivitySample
+                {
+                    TimestampUtc = DateTime.UtcNow,
+                    Actor = localName,
+                    EnemyName = characterName,
+                    Biome = biome,
+                    IsKill = true,
+                    IsEliteEnemy = dangerousEnemy
+                });
+
                 if (IsMilestoneCount(killCount) || (dangerousEnemy && killCount == 1))
                 {
                     _events.Add(
@@ -405,6 +473,16 @@ namespace ValheimSessionChronicle.Core
             stats.BossesKilled++;
             Increment(stats.BossKills, bossName);
             AddUnique(_current.Environment.BossesKilled, bossName);
+            _current.CombatSamples.Add(new CombatActivitySample
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Actor = localName,
+                EnemyName = bossName,
+                IsKill = true,
+                IsEliteEnemy = true,
+                IsBoss = true,
+                Biome = GetLocalBiome()
+            });
 
             // Boss progression is detected from visible boss death objects, not from server state.
             _events.Add(
@@ -443,6 +521,17 @@ namespace ValheimSessionChronicle.Core
             _current.Environment.PortalUses++;
 
             string portalTag = ValheimNames.GetPortalTag(portal);
+            string biome = GetLocalBiome();
+            _current.PortalSamples.Add(new PortalActivitySample
+            {
+                TimestampUtc = DateTime.UtcNow,
+                PortalName = portalTag,
+                Biome = biome,
+                X = player.transform.position.x,
+                Y = player.transform.position.y,
+                Z = player.transform.position.z
+            });
+
             bool firstPortalUse = stats.PortalUses == 1;
             bool namedPortalUse = !string.IsNullOrWhiteSpace(portalTag) &&
                                   ShouldCount("portal-tag:" + portalTag, TimeSpan.FromMinutes(10));
@@ -453,10 +542,11 @@ namespace ValheimSessionChronicle.Core
                     EventTypes.PortalUsed,
                     EventCategories.Travel,
                     string.IsNullOrWhiteSpace(portalTag)
-                        ? $"{playerName} poprvé použil portál."
-                        : $"{playerName} použil portál '{portalTag}' jako důležitý přesun výpravy.",
+                    ? $"{playerName} poprvé použil portál."
+                    : $"{playerName} použil portál '{portalTag}' jako důležitý přesun výpravy.",
                     actor: playerName,
                     target: portalTag,
+                    biome: biome,
                     position: ValheimNames.FormatPosition(player.transform.position),
                     importance: EventImportance.Medium,
                     duplicateKey: "portal-event:" + playerName + ":" + portalTag,
@@ -592,6 +682,7 @@ namespace ValheimSessionChronicle.Core
             PlayerStats stats = EnsurePlayerStats(playerName);
             bool firstPlacement = !stats.PiecesPlaced.ContainsKey(pieceName);
             bool workstation = ValheimNames.IsWorkstationPiece(piece, pieceName);
+            Vector3 buildPosition = GetPiecePosition(piece, player.transform.position);
 
             stats.PiecesPlacedTotal++;
             Increment(stats.PiecesPlaced, pieceName);
@@ -601,6 +692,26 @@ namespace ValheimSessionChronicle.Core
             }
 
             string biome = GetLocalBiome();
+            _current.BuildSamples.Add(new BuildActivitySample
+            {
+                TimestampUtc = DateTime.UtcNow,
+                PlayerName = playerName,
+                PieceName = pieceName,
+                Biome = biome,
+                X = buildPosition.x,
+                Y = buildPosition.y,
+                Z = buildPosition.z,
+                IsFire = ChronicleFilters.IsFirePiece(pieceName),
+                IsWorkbench = ChronicleFilters.IsWorkbenchPiece(pieceName),
+                IsBed = ChronicleFilters.IsBedPiece(pieceName),
+                IsStorage = ChronicleFilters.IsStoragePiece(pieceName),
+                IsWallOrDefense = ChronicleFilters.IsWallOrDefensePiece(pieceName),
+                IsPortal = ChronicleFilters.IsPortalPiece(pieceName),
+                IsForge = ChronicleFilters.IsForgePiece(pieceName),
+                IsAdvancedStation = ChronicleFilters.IsAdvancedStationPiece(pieceName),
+                IsWorkstation = workstation
+            });
+
             bool firstCampInBiome = false;
             if (ChronicleFilters.IsCampPiece(pieceName) && ChronicleFilters.IsValidBiome(biome))
             {
@@ -775,6 +886,31 @@ namespace ValheimSessionChronicle.Core
         private static bool IsMilestoneCount(int count)
         {
             return count == 5 || count == 10 || count == 25 || count == 50 || count % 100 == 0;
+        }
+
+        private static bool IsNearDeath(float health, float maxHealth)
+        {
+            if (health <= 0f)
+            {
+                return false;
+            }
+
+            if (maxHealth > 0f && health / maxHealth <= 0.15f)
+            {
+                return true;
+            }
+
+            return health <= 20f;
+        }
+
+        private static Vector3 GetPiecePosition(object piece, Vector3 fallback)
+        {
+            if (piece is Component component)
+            {
+                return component.transform.position;
+            }
+
+            return fallback;
         }
 
         private static bool AddUnique(ICollection<string> values, string value)

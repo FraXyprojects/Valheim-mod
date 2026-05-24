@@ -95,6 +95,62 @@ namespace ValheimSessionChronicle.Utility
             return CampPieces.Any(piece => normalized.Contains(Normalize(piece)));
         }
 
+        public static bool IsFirePiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("campfire") || normalized.Contains("bonfire") ||
+                   normalized.Contains("hearth") || normalized.Contains("fire") ||
+                   normalized.Contains("ohen") || normalized.Contains("taborak");
+        }
+
+        public static bool IsWorkbenchPiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("workbench") || normalized.Contains("pracovnistul");
+        }
+
+        public static bool IsBedPiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("bed") || normalized.Contains("postel");
+        }
+
+        public static bool IsStoragePiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("chest") || normalized.Contains("truhla") ||
+                   normalized.Contains("cart") || normalized.Contains("storage");
+        }
+
+        public static bool IsWallOrDefensePiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("wall") || normalized.Contains("stake") ||
+                   normalized.Contains("palisade") || normalized.Contains("gate") ||
+                   normalized.Contains("fence") || normalized.Contains("spike") ||
+                   normalized.Contains("hradba") || normalized.Contains("brana");
+        }
+
+        public static bool IsPortalPiece(string pieceName)
+        {
+            return NormalizeKey(pieceName).Contains("portal");
+        }
+
+        public static bool IsForgePiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("forge") || normalized.Contains("kovarna");
+        }
+
+        public static bool IsAdvancedStationPiece(string pieceName)
+        {
+            string normalized = NormalizeKey(pieceName);
+            return normalized.Contains("stonecutter") || normalized.Contains("artisan") ||
+                   normalized.Contains("blackforge") || normalized.Contains("galdr") ||
+                   normalized.Contains("eitr") || normalized.Contains("blastfurnace") ||
+                   normalized.Contains("windmill") || normalized.Contains("spinningwheel");
+        }
+
         public static bool IsDangerousEnemy(string enemyName)
         {
             string normalized = NormalizeKey(enemyName);

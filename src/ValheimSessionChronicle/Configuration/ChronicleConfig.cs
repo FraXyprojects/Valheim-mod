@@ -14,6 +14,8 @@ namespace ValheimSessionChronicle.Configuration
         public ConfigEntry<bool> TrackCombat { get; }
         public ConfigEntry<bool> TrackBuilding { get; }
         public ConfigEntry<bool> TrackCrafting { get; }
+        public ConfigEntry<int> ReconnectToleranceSeconds { get; }
+        public ConfigEntry<int> DisconnectDebounceSeconds { get; }
 
         public ChronicleConfig(ConfigFile config)
         {
@@ -64,6 +66,18 @@ namespace ValheimSessionChronicle.Configuration
                 nameof(TrackCrafting),
                 true,
                 "Track local crafting hooks.");
+
+            ReconnectToleranceSeconds = config.Bind(
+                "Session",
+                nameof(ReconnectToleranceSeconds),
+                90,
+                "How long a temporary ZNet/player loss may last before the session is finalized. Recommended range: 60-120 seconds.");
+
+            DisconnectDebounceSeconds = config.Bind(
+                "Session",
+                nameof(DisconnectDebounceSeconds),
+                10,
+                "Short debounce window before treating a missing player/ZNet as temporary connection loss.");
 
             EnableDiscordWebhook = config.Bind(
                 "Discord",

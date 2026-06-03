@@ -10,5 +10,6 @@ namespace ValheimSessionChronicle.WorldMemory
         public HashSet<string> PreviouslyKnownBiomes { get; set; } = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         public HashSet<string> PreviouslyKnownImportantItems { get; set; } = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         public HashSet<string> PreviouslyKnownBosses { get; set; } = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> PreviouslyKnownImportantStructures { get; set; } = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -396,7 +396,7 @@ namespace ValheimSessionChronicle.Utility
             }
 
             // Fallback for Valheim builds where the helper method is not available.
-            return UnityEngine.Object.FindObjectsOfType<Player>();
+            return UnityEngine.Object.FindObjectsByType<Player>(FindObjectsSortMode.None);
         }
 
         public static object FindPieceArgument(object[] args)
@@ -530,6 +530,37 @@ namespace ValheimSessionChronicle.Utility
             return string.Empty;
         }
 
+        public static Dictionary<string, int> GetInventoryItemCounts(object inventoryOwnerOrInventory)
+        {
+            Dictionary<string, int> counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (inventoryOwnerOrInventory == null)
+            {
+                return counts;
+            }
+
+            object inventory = ValheimReflection.GetMemberValue(inventoryOwnerOrInventory, "m_inventory") ?? inventoryOwnerOrInventory;
+            object items = SafeInvoke(inventory, "GetAllItems");
+            if (!(items is IEnumerable enumerable))
+            {
+                return counts;
+            }
+
+            foreach (object itemData in enumerable)
+            {
+                string itemName = GetItemDataName(itemData);
+                if (!ShouldKeepProgressionItemObservation(itemName))
+                {
+                    continue;
+                }
+
+                int stack = ValheimReflection.GetMemberValue<int>(itemData, "m_stack", 1);
+                counts.TryGetValue(itemName, out int current);
+                counts[itemName] = current + Math.Max(1, stack);
+            }
+
+            return counts;
+        }
+
         public static string GetPortalTag(object portal)
         {
             if (portal == null)
@@ -571,6 +602,31 @@ namespace ValheimSessionChronicle.Utility
             return IsImportantItem(itemName) || ImportantPieces.Any(value => itemName.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
+        private static bool ShouldKeepProgressionItemObservation(string itemName)
+        {
+            if (string.IsNullOrWhiteSpace(itemName) || ChronicleFilters.IsCommonResource(itemName))
+            {
+                return false;
+            }
+
+            if (IsImportantItem(itemName))
+            {
+                return true;
+            }
+
+            string normalized = ChronicleFilters.NormalizeKey(itemName);
+            string[] tokens =
+            {
+                "finewood", "corewood", "bronze", "bronz", "copper", "tin", "iron", "zelezo",
+                "silver", "stribro", "wolf", "blackmetal", "cernykov", "flametal", "ashwood",
+                "yggdrasil", "sap", "blackcore", "eitr", "carapace", "softtissue", "asksvin",
+                "morgen", "barley", "flax", "lox", "ancientseed", "surtlingcore", "cryptkey",
+                "swampkey", "dragonegg", "queenbee", "honey"
+            };
+
+            return tokens.Any(token => normalized.Contains(token));
+        }
+
         private static string GetItemDropName(object possibleItem)
         {
             if (possibleItem == null)
@@ -592,6 +648,24 @@ namespace ValheimSessionChronicle.Utility
             }
 
             return string.Empty;
+        }
+
+        private static string GetItemDataName(object itemData)
+        {
+            if (itemData == null)
+            {
+                return string.Empty;
+            }
+
+            object shared = ValheimReflection.GetMemberValue(itemData, "m_shared");
+            string sharedName = ValheimReflection.GetMemberValue<string>(shared, "m_name");
+            if (!string.IsNullOrWhiteSpace(sharedName))
+            {
+                return Clean(Localize(sharedName));
+            }
+
+            string directName = ValheimReflection.GetMemberValue<string>(itemData, "m_name");
+            return Clean(Localize(directName));
         }
 
         private static object SafeInvoke(object target, string methodName, params object[] args)

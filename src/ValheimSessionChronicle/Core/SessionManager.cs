@@ -804,6 +804,55 @@ namespace ValheimSessionChronicle.Core
             RecordItemPickup(player, new object[] { itemDrop });
         }
 
+        public void RecordInventoryObservation(Dictionary<string, int> itemCounts)
+        {
+            if (_current == null || itemCounts == null || itemCounts.Count == 0)
+            {
+                return;
+            }
+
+            MergeMax(_current.ObservedInventoryItems, itemCounts);
+        }
+
+        public void RecordContainerObservation(Dictionary<string, int> itemCounts)
+        {
+            if (_current == null || itemCounts == null || itemCounts.Count == 0)
+            {
+                return;
+            }
+
+            MergeMax(_current.ObservedContainerItems, itemCounts);
+        }
+
+        public void RecordProgressionStructureObservation(string structureName, string structureType, Vector3 position)
+        {
+            if (_current == null || string.IsNullOrWhiteSpace(structureName) || _current.StructureObservations.Count >= 300)
+            {
+                return;
+            }
+
+            string normalized = ChronicleFilters.NormalizeKey(structureName);
+            bool alreadySeen = _current.StructureObservations.Any(existing =>
+                ChronicleFilters.NormalizeKey(existing.StructureName) == normalized &&
+                DistanceSquared(existing.X, existing.Z, position.x, position.z) <= 35f * 35f);
+
+            if (alreadySeen)
+            {
+                return;
+            }
+
+            _current.StructureObservations.Add(new ProgressionStructureObservation
+            {
+                TimestampUtc = DateTime.UtcNow,
+                StructureName = structureName,
+                StructureType = structureType,
+                Biome = GetLocalBiome(),
+                X = position.x,
+                Y = position.y,
+                Z = position.z
+            });
+        }
+
         public void RecordTombstoneCreated(Player player)
         {
             if (_current == null || player == null || !ValheimNames.IsLocalPlayer(player))
@@ -949,6 +998,27 @@ namespace ValheimSessionChronicle.Core
             }
 
             Increment(nested, key);
+        }
+
+        private static void MergeMax(IDictionary<string, int> target, IEnumerable<KeyValuePair<string, int>> incoming)
+        {
+            foreach (KeyValuePair<string, int> pair in incoming)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value <= 0)
+                {
+                    continue;
+                }
+
+                target.TryGetValue(pair.Key, out int current);
+                target[pair.Key] = Math.Max(current, pair.Value);
+            }
+        }
+
+        private static float DistanceSquared(float ax, float az, float bx, float bz)
+        {
+            float dx = ax - bx;
+            float dz = az - bz;
+            return dx * dx + dz * dz;
         }
 
         private bool ShouldCount(string key, TimeSpan cooldown)

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using ValheimSessionChronicle.Models;
 using ValheimSessionChronicle.Utility;
+using ValheimSessionChronicle.WorldMemory;
 
 namespace ValheimSessionChronicle.Reporting.Analysis
 {
@@ -11,15 +12,35 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             SessionData session,
             CombatIntensityResult combat,
             SurvivalSummary survival,
-            IReadOnlyList<CampCluster> camps)
+            IReadOnlyList<CampCluster> camps,
+            WorldMemoryData worldMemory = null,
+            WorldMemoryUpdateResult memoryUpdate = null,
+            ProgressionContext progression = null,
+            DiscoveryAnalysis discovery = null)
         {
             List<string> phases = new List<string>();
+            AddProgressionPhase(progression, phases);
             AddExplorationPhase(session, phases);
-            AddCampPhase(camps, phases);
+            if (!AddPersistentCampPhase(memoryUpdate, phases))
+            {
+                AddCampPhase(camps, phases);
+            }
+
+            AddResourceOperationPhase(discovery, phases);
             AddCombatPhase(combat, phases);
             AddSurvivalPhase(session, survival, combat, phases);
             AddBossPhase(session, survival, phases);
             return phases;
+        }
+
+        private static void AddProgressionPhase(ProgressionContext progression, ICollection<string> phases)
+        {
+            if (progression == null || !progression.HasStrongEvidence || progression.DominantStage < ProgressionStage.Swamp)
+            {
+                return;
+            }
+
+            phases.Add($"Podle zachycených zásob a stanic už svět nese znaky fáze {progression.DominantLabel}.");
         }
 
         private static void AddExplorationPhase(SessionData session, ICollection<string> phases)
@@ -49,6 +70,47 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 
             string biome = ChronicleFilters.IsValidBiome(strongest.Biome) ? $" v biomu {strongest.Biome}" : string.Empty;
             phases.Add($"Stavební část výpravy vyústila v objekt typu {strongest.Name}{biome}, se zhruba {strongest.StructureCount} postavenými díly.");
+        }
+
+        private static bool AddPersistentCampPhase(WorldMemoryUpdateResult memoryUpdate, ICollection<string> phases)
+        {
+            PersistentCampChange change = memoryUpdate?.CampChanges
+                .OrderByDescending(entry => entry.IsTierUpgrade)
+                .ThenByDescending(entry => entry.NewTier)
+                .ThenByDescending(entry => entry.AddedStructures)
+                .FirstOrDefault();
+
+            if (change == null)
+            {
+                return false;
+            }
+
+            string biome = ChronicleFilters.IsValidBiome(change.Biome) ? $" v biomu {change.Biome}" : string.Empty;
+            if (change.IsNewCamp)
+            {
+                phases.Add($"Na mapě přibyl nový opěrný bod: {change.NewTierName}{biome}.");
+            }
+            else if (change.IsTierUpgrade)
+            {
+                phases.Add($"Dříve známý {change.PreviousTierName}{biome} se posunul na úroveň {change.NewTierName}.");
+            }
+            else
+            {
+                phases.Add($"Známé zázemí{biome} bylo během session dál rozšířeno a upevněno.");
+            }
+
+            return true;
+        }
+
+        private static void AddResourceOperationPhase(DiscoveryAnalysis discovery, ICollection<string> phases)
+        {
+            ResourceOperation operation = discovery?.ResourceOperations.FirstOrDefault();
+            if (operation == null)
+            {
+                return;
+            }
+
+            phases.Add($"Zásobovací linku session nejvíc určovala oblast '{operation.OperationType}'.");
         }
 
         private static void AddCombatPhase(CombatIntensityResult combat, ICollection<string> phases)

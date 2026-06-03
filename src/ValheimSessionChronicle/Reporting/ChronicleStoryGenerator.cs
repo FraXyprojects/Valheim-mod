@@ -23,19 +23,24 @@ namespace ValheimSessionChronicle.Reporting
             ExpeditionProfileResult profile,
             IReadOnlyList<CampCluster> camps,
             WorldMemoryData worldMemory,
-            WorldMemoryUpdateResult memoryUpdate)
+            WorldMemoryUpdateResult memoryUpdate,
+            ProgressionContext progression,
+            DiscoveryAnalysis discovery)
         {
             List<string> paragraphs = new List<string>();
             string mainPlayer = GetMainPlayer(session);
 
-            List<string> phases = _phaseBuilder.BuildPhases(session, combat, survival, camps);
+            List<string> phases = _phaseBuilder.BuildPhases(session, combat, survival, camps, worldMemory, memoryUpdate, progression, discovery);
             if (phases.Count > 0)
             {
                 paragraphs.Add(string.Join(" ", phases));
             }
 
             AddWorldMemoryParagraph(worldMemory, memoryUpdate, paragraphs);
-            AddDiscoveryParagraph(meaningfulEvents, paragraphs);
+            AddProgressionParagraph(progression, paragraphs);
+            AddResourceOperationParagraph(discovery, paragraphs);
+            AddDiscoveryParagraph(discovery, meaningfulEvents, paragraphs);
+            AddPortalNetworkParagraph(session, worldMemory, paragraphs);
             AddProfileParagraph(profile, paragraphs);
             AddCombatDetails(session, mainPlayer, combat, paragraphs);
             AddEndingParagraph(session, paragraphs);
@@ -114,8 +119,49 @@ namespace ValheimSessionChronicle.Reporting
             }
         }
 
-        private static void AddDiscoveryParagraph(IReadOnlyList<SessionEvent> meaningfulEvents, ICollection<string> paragraphs)
+        private static void AddProgressionParagraph(ProgressionContext progression, ICollection<string> paragraphs)
         {
+            if (progression == null || !progression.HasStrongEvidence)
+            {
+                return;
+            }
+
+            paragraphs.Add($"Z pozorovaných zásob, stanic a milníků působil svět nejvíc jako fáze {progression.DominantLabel}, takže jednotlivé nálezy dostaly váhu podle skutečného postupu světa.");
+        }
+
+        private static void AddResourceOperationParagraph(DiscoveryAnalysis discovery, ICollection<string> paragraphs)
+        {
+            if (discovery == null || discovery.ResourceOperations.Count == 0)
+            {
+                return;
+            }
+
+            List<ResourceOperation> operations = discovery.ResourceOperations.Take(3).ToList();
+            paragraphs.Add(operations.Count == 1
+                ? $"Výrazným motivem session byla operace: {operations[0].Summary}."
+                : $"Vedle samotného průzkumu hrály roli i větší zásobovací operace: {JoinCzech(operations.Select(operation => operation.Summary).ToList())}.");
+        }
+
+        private static void AddDiscoveryParagraph(DiscoveryAnalysis discovery, IReadOnlyList<SessionEvent> meaningfulEvents, ICollection<string> paragraphs)
+        {
+            if (discovery != null && discovery.Discoveries.Count > 0)
+            {
+                List<string> analyzedDiscoveries = discovery.Discoveries
+                    .Where(record => record.Tier >= DiscoveryValueTier.High)
+                    .Select(record => record.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList();
+
+                if (analyzedDiscoveries.Count > 0)
+                {
+                    paragraphs.Add(analyzedDiscoveries.Count == 1
+                        ? $"Nejvýraznějším progresním nálezem byl {analyzedDiscoveries[0]}."
+                        : $"Nejvýraznější progresní nálezy představovaly {JoinCzech(analyzedDiscoveries)}.");
+                    return;
+                }
+            }
+
             List<string> discoveries = meaningfulEvents
                 .Where(entry => (entry.Type == EventTypes.Discovery || entry.Type == EventTypes.Crafting) &&
                                 !string.IsNullOrWhiteSpace(entry.Target) &&
@@ -135,6 +181,25 @@ namespace ValheimSessionChronicle.Reporting
                 : $"Mezi důležité nálezy a milníky patřily {JoinCzech(discoveries)}.");
         }
 
+        private static void AddPortalNetworkParagraph(SessionData session, WorldMemoryData worldMemory, ICollection<string> paragraphs)
+        {
+            int portalUses = session.PlayerStats.Values.Sum(stats => stats.PortalUses);
+            int knownPortals = worldMemory?.Portals.Count ?? 0;
+            if (portalUses < 8 && knownPortals < 3)
+            {
+                return;
+            }
+
+            if (portalUses >= 14)
+            {
+                paragraphs.Add("Výprava se výrazně opírala o zavedenou portálovou síť, která propojovala aktivní zázemí a zkracovala návraty mezi jednotlivými cíli.");
+            }
+            else
+            {
+                paragraphs.Add("Časté portálové přesuny naznačily, že skupina pracovala s už rozvinutější sítí opěrných bodů.");
+            }
+        }
+
         private static void AddProfileParagraph(ExpeditionProfileResult profile, ICollection<string> paragraphs)
         {
             List<ExpeditionProfileScore> dominant = profile.DominantScores.ToList();
@@ -152,6 +217,24 @@ namespace ValheimSessionChronicle.Reporting
             Dictionary<string, int> enemyKills = MergeCounts(session.PlayerStats.Values.Select(stats => stats.EnemyKills));
             if (enemyKills.Count == 0)
             {
+                return;
+            }
+
+            int totalKills = session.PlayerStats.Values.Sum(stats => stats.EnemiesKilled);
+            int dangerousEncounters = session.PlayerStats.Values.Sum(stats => stats.DangerousEncounters);
+            string combatPlace = ChronicleFilters.IsValidBiome(combat.DominantCombatBiome)
+                ? $"v biomu {combat.DominantCombatBiome}"
+                : "v nebezpečném terénu";
+
+            if (combat.Tier == CombatIntensityTier.Extreme)
+            {
+                paragraphs.Add($"Bojová část měla brutální tempo: {combatPlace} se z výpravy stala série téměř nepřetržitých střetů, s {totalKills} potvrzenými zabitími a {dangerousEncounters} nebezpečnými momenty.");
+                return;
+            }
+
+            if (combat.Tier == CombatIntensityTier.High)
+            {
+                paragraphs.Add($"Poklidný postup se zlomil v tvrdý boj o přežití; {combatPlace} skupina odolala výraznému tlaku nepřátel a zakončila session s {totalKills} potvrzenými zabitími.");
                 return;
             }
 

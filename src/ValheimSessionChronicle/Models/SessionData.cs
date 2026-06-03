@@ -24,6 +24,9 @@ namespace ValheimSessionChronicle.Models
         public List<CombatActivitySample> CombatSamples { get; set; } = new List<CombatActivitySample>();
         public List<BuildActivitySample> BuildSamples { get; set; } = new List<BuildActivitySample>();
         public List<PortalActivitySample> PortalSamples { get; set; } = new List<PortalActivitySample>();
+        public List<ProgressionStructureObservation> StructureObservations { get; set; } = new List<ProgressionStructureObservation>();
+        public Dictionary<string, int> ObservedInventoryItems { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ObservedContainerItems { get; set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, PlayerStats> PlayerStats { get; set; } = new Dictionary<string, PlayerStats>(StringComparer.OrdinalIgnoreCase);
         public EnvironmentStats Environment { get; set; } = new EnvironmentStats();
         public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using ValheimSessionChronicle.Configuration;
 using ValheimSessionChronicle.Utility;
@@ -15,6 +16,7 @@ namespace ValheimSessionChronicle.Core
         private float _nextPlayersCheck;
         private float _nextBiomeCheck;
         private float _nextEnvironmentCheck;
+        private float _nextProgressionScan;
         private string _lastBiome;
         private string _lastWeather;
         private bool? _lastNightState;
@@ -61,6 +63,12 @@ namespace ValheimSessionChronicle.Core
             {
                 _nextEnvironmentCheck = now + 8f;
                 CheckEnvironment();
+            }
+
+            if (now >= _nextProgressionScan)
+            {
+                _nextProgressionScan = now + 45f;
+                CheckProgressionContext();
             }
         }
 
@@ -150,6 +158,101 @@ namespace ValheimSessionChronicle.Core
             {
                 ChronicleLogger.Warning($"Environment tracking failed: {ex.Message}");
             }
+        }
+
+        private void CheckProgressionContext()
+        {
+            try
+            {
+                Player localPlayer = Player.m_localPlayer;
+                if (localPlayer == null)
+                {
+                    return;
+                }
+
+                _sessionManager.RecordInventoryObservation(ValheimNames.GetInventoryItemCounts(localPlayer));
+                _sessionManager.RecordContainerObservation(ScanNearbyContainers(localPlayer));
+                ScanNearbyCraftingStations(localPlayer);
+            }
+            catch (Exception ex)
+            {
+                ChronicleLogger.Warning($"Progression context scan failed: {ex.Message}");
+            }
+        }
+
+        private static Dictionary<string, int> ScanNearbyContainers(Player localPlayer)
+        {
+            const float Radius = 32f;
+            const int MaxContainersPerScan = 40;
+
+            Dictionary<string, int> totals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int scanned = 0;
+
+            foreach (Container container in UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None))
+            {
+                if (container == null || scanned >= MaxContainersPerScan)
+                {
+                    break;
+                }
+
+                if ((container.transform.position - localPlayer.transform.position).sqrMagnitude > Radius * Radius)
+                {
+                    continue;
+                }
+
+                scanned++;
+                Dictionary<string, int> containerItems = ValheimNames.GetInventoryItemCounts(container);
+                foreach (KeyValuePair<string, int> pair in containerItems)
+                {
+                    totals.TryGetValue(pair.Key, out int current);
+                    totals[pair.Key] = current + pair.Value;
+                }
+            }
+
+            return totals;
+        }
+
+        private void ScanNearbyCraftingStations(Player localPlayer)
+        {
+            const float Radius = 64f;
+            const int MaxStationsPerScan = 80;
+
+            int scanned = 0;
+            foreach (CraftingStation station in UnityEngine.Object.FindObjectsByType<CraftingStation>(FindObjectsSortMode.None))
+            {
+                if (station == null || scanned >= MaxStationsPerScan)
+                {
+                    break;
+                }
+
+                if ((station.transform.position - localPlayer.transform.position).sqrMagnitude > Radius * Radius)
+                {
+                    continue;
+                }
+
+                scanned++;
+                Piece piece = station.GetComponent<Piece>();
+                object stationObject = piece != null ? (object)piece : station;
+                string stationName = ValheimNames.GetPieceName(stationObject);
+                if (!IsProgressionStation(stationName))
+                {
+                    continue;
+                }
+
+                _sessionManager.RecordProgressionStructureObservation(stationName, "CraftingStation", station.transform.position);
+            }
+        }
+
+        private static bool IsProgressionStation(string stationName)
+        {
+            if (string.IsNullOrWhiteSpace(stationName))
+            {
+                return false;
+            }
+
+            return ValheimNames.IsImportantPiece(stationName) ||
+                   ChronicleFilters.IsForgePiece(stationName) ||
+                   ChronicleFilters.IsAdvancedStationPiece(stationName);
         }
     }
 }

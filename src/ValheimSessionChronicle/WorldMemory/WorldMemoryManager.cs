@@ -58,7 +58,10 @@ namespace ValheimSessionChronicle.WorldMemory
             {
                 PreviouslyKnownBiomes = new HashSet<string>(memory.DiscoveredBiomes, StringComparer.OrdinalIgnoreCase),
                 PreviouslyKnownImportantItems = new HashSet<string>(memory.ImportantItems, StringComparer.OrdinalIgnoreCase),
-                PreviouslyKnownBosses = new HashSet<string>(memory.BossesDefeated, StringComparer.OrdinalIgnoreCase)
+                PreviouslyKnownBosses = new HashSet<string>(memory.BossesDefeated, StringComparer.OrdinalIgnoreCase),
+                PreviouslyKnownImportantStructures = new HashSet<string>(
+                    memory.ImportantStructures.Select(entry => entry.StructureName),
+                    StringComparer.OrdinalIgnoreCase)
             };
         }
 
@@ -72,7 +75,12 @@ namespace ValheimSessionChronicle.WorldMemory
 
         private static void UpdateImportantItems(WorldMemoryData memory, SessionData session)
         {
-            foreach (string item in session.PlayerStats.Values.SelectMany(stats => stats.ItemPickups.Keys).Where(ValheimNames.IsImportantItem))
+            IEnumerable<string> observedItems = session.PlayerStats.Values.SelectMany(stats => stats.ItemPickups.Keys)
+                .Concat(session.PlayerStats.Values.SelectMany(stats => stats.CraftedItems.Keys))
+                .Concat(session.ObservedInventoryItems.Keys)
+                .Concat(session.ObservedContainerItems.Keys);
+
+            foreach (string item in observedItems.Where(ValheimNames.IsImportantItem))
             {
                 if (AddUnique(memory.ImportantItems, item))
                 {
@@ -466,6 +474,45 @@ namespace ValheimSessionChronicle.WorldMemory
                     });
                 }
             }
+
+            foreach (ProgressionStructureObservation observation in session.StructureObservations.Where(IsImportantStructure))
+            {
+                PersistentStructureRecord record = memory.ImportantStructures.FirstOrDefault(existing =>
+                    string.Equals(existing.StructureName, observation.StructureName, StringComparison.OrdinalIgnoreCase) &&
+                    DistanceSquared(existing.ApproximateX, existing.ApproximateZ, observation.X, observation.Z) <= 60f * 60f);
+
+                bool isNew = record == null;
+                if (record == null)
+                {
+                    record = new PersistentStructureRecord
+                    {
+                        StructureName = observation.StructureName,
+                        StructureType = observation.StructureType,
+                        Biome = observation.Biome,
+                        FirstSeenUtc = observation.TimestampUtc,
+                        FirstSeenSessionId = session.SessionId,
+                        ApproximateX = observation.X,
+                        ApproximateY = observation.Y,
+                        ApproximateZ = observation.Z
+                    };
+                    memory.ImportantStructures.Add(record);
+                }
+
+                record.LastSeenUtc = observation.TimestampUtc;
+                record.ObservationCount++;
+                if (isNew)
+                {
+                    result.NewImportantStructures.Add(record);
+                    memory.ProgressionObservations.Add(new WorldProgressionObservation
+                    {
+                        TimestampUtc = observation.TimestampUtc,
+                        SessionId = session.SessionId,
+                        Type = "structure",
+                        Name = observation.StructureName,
+                        Biome = observation.Biome
+                    });
+                }
+            }
         }
 
         private static bool IsImportantStructure(BuildActivitySample sample)
@@ -473,6 +520,16 @@ namespace ValheimSessionChronicle.WorldMemory
             return sample.IsForge || sample.IsAdvancedStation ||
                    ChronicleFilters.NormalizeKey(sample.PieceName).Contains("stonecutter") ||
                    ChronicleFilters.NormalizeKey(sample.PieceName).Contains("artisan");
+        }
+
+        private static bool IsImportantStructure(ProgressionStructureObservation observation)
+        {
+            string normalized = ChronicleFilters.NormalizeKey(observation.StructureName);
+            return normalized.Contains("forge") || normalized.Contains("kovarna") ||
+                   normalized.Contains("stonecutter") || normalized.Contains("artisan") ||
+                   normalized.Contains("blackforge") || normalized.Contains("galdr") ||
+                   normalized.Contains("eitrrefinery") || normalized.Contains("blastfurnace") ||
+                   normalized.Contains("windmill") || normalized.Contains("spinningwheel");
         }
 
         private static string GetStructureType(BuildActivitySample sample)

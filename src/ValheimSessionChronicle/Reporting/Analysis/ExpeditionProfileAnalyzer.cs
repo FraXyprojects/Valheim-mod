@@ -9,18 +9,29 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 {
     public sealed class ExpeditionProfileAnalyzer
     {
-        public ExpeditionProfileResult Analyze(SessionData session, CombatIntensityResult combat, SurvivalSummary survival)
+        public ExpeditionProfileResult Analyze(
+            SessionData session,
+            CombatIntensityResult combat,
+            SurvivalSummary survival,
+            DiscoveryAnalysis discovery = null)
         {
             int kills = session.PlayerStats.Values.Sum(stats => stats.EnemiesKilled);
             int pieces = session.PlayerStats.Values.Sum(stats => stats.PiecesPlacedTotal);
             int workstations = session.PlayerStats.Values.Sum(stats => stats.WorkstationsPlaced);
             int crafts = session.PlayerStats.Values.Sum(stats => stats.Crafts);
             int shipUses = session.PlayerStats.Values.Sum(stats => stats.ShipUses);
+            int portalUses = session.PlayerStats.Values.Sum(stats => stats.PortalUses);
             int items = session.PlayerStats.Values.Sum(stats => stats.ItemsPickedUp);
             int bossKills = session.PlayerStats.Values.Sum(stats => stats.BossesKilled);
             int dangerous = session.PlayerStats.Values.Sum(stats => stats.DangerousEncounters);
             int discoveries = session.Events.Count(entry => entry.Type == EventTypes.Discovery);
             int biomes = session.Environment.BiomesVisited.Count(ChronicleFilters.IsValidBiome);
+            int distinctPortals = session.PortalSamples
+                .Where(sample => !string.IsNullOrWhiteSpace(sample.PortalName))
+                .Select(sample => sample.PortalName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            int resourceOperations = discovery?.ResourceOperations.Sum(operation => Math.Min(80, operation.Quantity)) ?? 0;
 
             List<ExpeditionProfileScore> scores = new List<ExpeditionProfileScore>
             {
@@ -35,6 +46,14 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 Score("Rybářská", "Rybarska", CountKeywordItems(session, "fish", "ryba") * 10.0),
                 Score("Farmářská", "Farmarska", CountKeywordItems(session, "carrot", "turnip", "onion", "barley", "flax", "mrkev", "repa", "cibule") * 6.0)
             };
+
+            scores.Add(Score("Logistická", "Logisticka", portalUses * 6.0 + distinctPortals * 10.0 + session.PortalSamples.Count * 2.0));
+
+            ExpeditionProfileScore gathering = scores.FirstOrDefault(score => score.FileToken == "Sberacska");
+            if (gathering != null)
+            {
+                gathering.RawScore += resourceOperations * 0.35;
+            }
 
             Normalize(scores);
             return new ExpeditionProfileResult { Scores = scores.Where(score => score.Percentage > 0).OrderByDescending(score => score.Percentage).ToList() };

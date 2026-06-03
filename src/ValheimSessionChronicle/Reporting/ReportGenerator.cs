@@ -21,6 +21,8 @@ namespace ValheimSessionChronicle.Reporting
         private readonly SurvivalAnalyzer _survivalAnalyzer = new SurvivalAnalyzer();
         private readonly ExpeditionProfileAnalyzer _profileAnalyzer = new ExpeditionProfileAnalyzer();
         private readonly CampClassificationSystem _campClassification = new CampClassificationSystem();
+        private readonly ProgressionContextAnalyzer _progressionAnalyzer = new ProgressionContextAnalyzer();
+        private readonly DiscoveryValueAnalyzer _discoveryAnalyzer = new DiscoveryValueAnalyzer();
 
         public string Generate(
             SessionData session,
@@ -31,16 +33,20 @@ namespace ValheimSessionChronicle.Reporting
             List<SessionEvent> meaningfulEvents = GetMeaningfulEvents(session, memoryUpdate).ToList();
             CombatIntensityResult combat = _combatAnalyzer.Analyze(session);
             SurvivalSummary survival = _survivalAnalyzer.Analyze(session);
-            ExpeditionProfileResult profile = _profileAnalyzer.Analyze(session, combat, survival);
             List<CampCluster> camps = _campClassification.Classify(session);
+            ProgressionContext progression = _progressionAnalyzer.Analyze(session, worldMemory);
+            DiscoveryAnalysis discovery = _discoveryAnalyzer.Analyze(session, worldMemory, memoryUpdate, progression);
+            ExpeditionProfileResult profile = _profileAnalyzer.Analyze(session, combat, survival, discovery);
             StringBuilder builder = new StringBuilder(8192);
             DateTime localStart = session.StartTimeUtc.ToLocalTime();
 
             AppendHeader(builder);
             AppendMetadata(builder, session, localStart);
             AppendPlayers(builder, session);
-            AppendStory(builder, session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate);
+            AppendStory(builder, session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery);
             AppendWorldContinuity(builder, worldMemory, memoryUpdate);
+            AppendProgressionContext(builder, progression);
+            AppendDiscoveryContext(builder, discovery);
             AppendExpeditionProfile(builder, profile);
             AppendHighlights(builder, meaningfulEvents);
             AppendStats(builder, session, combat, survival, camps);
@@ -86,6 +92,24 @@ namespace ValheimSessionChronicle.Reporting
             if (entry.Type == EventTypes.PortalUsed && memoryUpdate.NewPortals.Count == 0)
             {
                 return true;
+            }
+
+            if (entry.Type == EventTypes.BuildingMilestone && !string.IsNullOrWhiteSpace(entry.Target))
+            {
+                bool knownStructure = memoryUpdate.PreviouslyKnownImportantStructures.Contains(entry.Target);
+                bool newStructure = memoryUpdate.NewImportantStructures.Any(record =>
+                    string.Equals(record.StructureName, entry.Target, StringComparison.OrdinalIgnoreCase));
+
+                if (knownStructure && !newStructure)
+                {
+                    return true;
+                }
+
+                bool meaningfulCampChange = memoryUpdate.CampChanges.Any(change => change.IsNewCamp || change.IsTierUpgrade);
+                if (ChronicleFilters.IsCampPiece(entry.Target) && !meaningfulCampChange)
+                {
+                    return true;
+                }
             }
 
             return false;
@@ -149,13 +173,15 @@ namespace ValheimSessionChronicle.Reporting
             ExpeditionProfileResult profile,
             IReadOnlyList<CampCluster> camps,
             WorldMemoryData worldMemory,
-            WorldMemoryUpdateResult memoryUpdate)
+            WorldMemoryUpdateResult memoryUpdate,
+            ProgressionContext progression,
+            DiscoveryAnalysis discovery)
         {
             builder.AppendLine(SectionLine);
             builder.AppendLine("PŘÍBĚH SESSION");
             builder.AppendLine(SectionLine);
             builder.AppendLine();
-            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate));
+            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery));
             builder.AppendLine();
         }
 
@@ -192,6 +218,69 @@ namespace ValheimSessionChronicle.Reporting
             }
 
             builder.AppendLine();
+        }
+
+        private static void AppendProgressionContext(StringBuilder builder, ProgressionContext progression)
+        {
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("PROGRES SVĚTA");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+
+            builder.AppendLine(progression.HasStrongEvidence
+                ? $"- Dominantní fáze podle pozorování: {progression.DominantLabel}"
+                : "- Dominantní fáze není jistá; klient zachytil jen slabé indicie.");
+
+            foreach (ProgressionConfidence confidence in progression.Confidences.Take(6))
+            {
+                builder.AppendLine($"- {confidence.Label}: {confidence.Percentage}%");
+            }
+
+            if (progression.Evidence.Count > 0)
+            {
+                builder.AppendLine("- Hlavní indicie:");
+                foreach (string evidence in progression.Evidence.Take(5))
+                {
+                    builder.AppendLine($"  - {evidence}");
+                }
+            }
+
+            builder.AppendLine();
+        }
+
+        private static void AppendDiscoveryContext(StringBuilder builder, DiscoveryAnalysis discovery)
+        {
+            if (!discovery.HasMeaningfulContent)
+            {
+                return;
+            }
+
+            builder.AppendLine(SectionLine);
+            builder.AppendLine("OPERACE A OBJEVY");
+            builder.AppendLine(SectionLine);
+            builder.AppendLine();
+
+            if (discovery.ResourceOperations.Count > 0)
+            {
+                builder.AppendLine("Resource operace:");
+                foreach (ResourceOperation operation in discovery.ResourceOperations.Take(5))
+                {
+                    builder.AppendLine($"- {operation.OperationType}: {operation.Summary}");
+                }
+
+                builder.AppendLine();
+            }
+
+            if (discovery.Discoveries.Count > 0)
+            {
+                builder.AppendLine("Významné objevy:");
+                foreach (DiscoveryValueRecord record in discovery.Discoveries.Take(5))
+                {
+                    builder.AppendLine($"- {record.Summary}");
+                }
+
+                builder.AppendLine();
+            }
         }
 
         private static void AppendExpeditionProfile(StringBuilder builder, ExpeditionProfileResult profile)

@@ -11,6 +11,8 @@ The mod is passive. It does not change gameplay, does not require installation o
 - Optional raw `.debug.json` export for troubleshooting
 - Robust session lifecycle with reconnect tolerance for temporary ZNet/player rebuilds
 - Combat intensity, survival pressure, expedition profile, and camp classification analysis
+- Progression context analysis from observed inventory, nearby containers, crafting stations, and WorldMemory
+- Discovery value and resource-operation analysis so repeated late-game resources do not look like first discoveries
 - In-memory event batching with no periodic disk writes during play
 - Defensive Harmony patches for Valheim activity hooks
 - Optional Discord webhook POST with the TXT session summary
@@ -30,6 +32,7 @@ Tracked when available client-side:
 - aggregated combat statistics, dangerous encounters, and likely local enemy kills
 - local tombstone creation
 - weather and day/night transitions
+- lightweight progression observations from local inventory, nearby loaded containers, and nearby crafting stations
 
 ## Installation
 
@@ -112,6 +115,7 @@ World memory tracks lightweight observations:
 - important structures such as forge, stonecutter, artisan table, black forge, eitr refinery, galdr table, and blast furnace
 - observed portal names and approximate locations
 - discovered biomes, important items, and boss progression
+- progression evidence from observed player inventory, nearby stockpiles, and crafting infrastructure
 
 The memory intentionally does not store every kill, every structure, or raw combat history.
 
@@ -186,6 +190,7 @@ This mod is not server authoritative. It cannot reliably know everything that ha
 - Player activity for distant players is incomplete unless the client receives or observes the relevant object/event.
 - Common survival resources such as stone, wood, resin, mushrooms, neck tails, boar meat, leather scraps, and raspberries are intentionally excluded from the final chronicle.
 - HP tracking is client-side best effort. If Valheim does not expose reliable health/damage data for a situation, the chronicle falls back to combat pressure and death statistics.
+- Inventory, nearby container, and nearby crafting station scans are lightweight best effort. They only see loaded objects available to the client and do not represent the full world.
 - Temporary object rebuilds, ZNet resets, and short reconnects are treated as one continuous play session within `ReconnectToleranceSeconds`.
 - World memory contains only previously observed client-side state. It improves continuity, but it does not prove that unseen structures still exist.
 - Valheim method names can change between updates. Missing Harmony targets are logged and skipped instead of crashing the game.

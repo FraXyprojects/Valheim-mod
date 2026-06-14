@@ -28,7 +28,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 
             AddResourceOperationPhase(discovery, phases);
             AddCombatPhase(combat, phases);
-            AddSurvivalPhase(session, survival, combat, phases);
+            AddSurvivalPhase(session, survival, phases);
             AddBossPhase(session, survival, phases);
             return phases;
         }
@@ -94,6 +94,14 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             {
                 phases.Add($"Dříve známý {change.PreviousTierName}{biome} se posunul na úroveň {change.NewTierName}.");
             }
+            else if (change.AddedAdvancedStation || change.AddedForge)
+            {
+                phases.Add($"Staré zázemí{biome} dostalo další řemeslnou infrastrukturu a začalo působit jako důležitější základna.");
+            }
+            else if (change.AddedDefenses)
+            {
+                phases.Add($"Skupina posílila jedno ze svých zavedených míst{biome} o obranné prvky.");
+            }
             else
             {
                 phases.Add($"Známé zázemí{biome} bylo během session dál rozšířeno a upevněno.");
@@ -118,33 +126,50 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             switch (combat.Tier)
             {
                 case CombatIntensityTier.Extreme:
-                    string place = ChronicleFilters.IsValidBiome(combat.DominantCombatBiome) ? combat.DominantCombatBiome : "nepřátelském území";
-                    phases.Add($"{place} se proměnil v dlouhou sérii brutálních střetů, ve kterých skupina bojovala téměř nepřetržitě.");
+                    phases.Add("Skupina strávila velkou část výpravy bojem o přežití a tlak nepřátel určoval tempo celé session.");
                     break;
                 case CombatIntensityTier.High:
-                    phases.Add("Poklidná výprava se postupně změnila v intenzivní boj o přežití.");
+                    phases.Add("Velká část výpravy se nesla ve znamení souvislého boje a neustálého hlídání prostoru.");
                     break;
                 case CombatIntensityTier.Medium:
-                    phases.Add("Skupina během postupu několikrát narazila na odpor místních nepřátel.");
+                    phases.Add("Postup výpravy opakovaně přerušoval odpor místních nepřátel.");
                     break;
                 default:
-                    phases.Add("Výprava se nesla hlavně ve znamení průzkumu a přesunů mezi biomy.");
+                    phases.Add("Výprava zůstala převážně klidná a boj tvořil spíš okrajové epizody.");
                     break;
             }
         }
 
-        private static void AddSurvivalPhase(SessionData session, SurvivalSummary survival, CombatIntensityResult combat, ICollection<string> phases)
+        private static void AddSurvivalPhase(SessionData session, SurvivalSummary survival, ICollection<string> phases)
         {
-            if (survival.HasHealthData && survival.NearDeathMoments > 0)
+            string playerName = string.IsNullOrWhiteSpace(session.LocalPlayerName) ? "Hráč" : session.LocalPlayerName;
+
+            if (survival.HasHealthData && survival.HeroicEscapes > 0)
             {
-                phases.Add("Nejméně jednou se situace zlomila na hraně přežití a FraXson unikl smrti jen s minimem sil.");
+                phases.Add($"{playerName} se nejméně jednou dostal na hranici jisté smrti, ale dokázal pokračovat v boji i po kritickém zranění.");
+                return;
+            }
+
+            if (survival.HasHealthData && survival.LastStandMoments > 0)
+            {
+                phases.Add($"Jeden z nejtvrdších střetů měl charakter posledního odporu: {playerName} přežil s minimem sil a krátce nato dál porážel nepřátele.");
+                return;
+            }
+
+            if (survival.HasHealthData && survival.NearDeathEscapes > 0)
+            {
+                phases.Add($"{playerName} unikl smrti jen s minimem sil; nejnižší zachycené zdraví kleslo na {survival.LowestHealthPercent:P0}.");
                 return;
             }
 
             int deaths = session.PlayerStats.Values.Sum(stats => stats.Deaths);
-            if (deaths == 0 && (int)combat.Tier >= (int)CombatIntensityTier.High)
+            if (deaths == 0 && (int)survival.StressTier >= (int)CombatIntensityTier.High)
             {
-                phases.Add("Navzdory silnému tlaku výprava přežila bez ztráty života.");
+                phases.Add("Navzdory dlouhodobému tlaku a opakovaným zraněním výprava přežila bez ztráty života.");
+            }
+            else if ((int)survival.StressTier >= (int)CombatIntensityTier.Medium)
+            {
+                phases.Add("Výprava čelila opakovanému nebezpečí, které postupně zvedalo tlak na přežití.");
             }
             else if (deaths > 0)
             {

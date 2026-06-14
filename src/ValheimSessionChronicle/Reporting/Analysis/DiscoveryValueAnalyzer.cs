@@ -102,6 +102,8 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 session.ObservedContainerItems);
 
             AddDiscoveries(analysis, activeItems, memoryUpdate, progression);
+            AddBiomeDiscoveries(analysis, session, memoryUpdate, progression);
+            AddStructureDiscoveries(analysis, memoryUpdate, progression);
             AddResourceOperations(analysis, activeItems, "získané suroviny");
             AddResourceOperations(analysis, observedItems, "pozorované zásoby");
 
@@ -188,6 +190,71 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             }
         }
 
+        private static void AddBiomeDiscoveries(
+            DiscoveryAnalysis analysis,
+            SessionData session,
+            WorldMemoryUpdateResult memoryUpdate,
+            ProgressionContext progression)
+        {
+            foreach (string biome in session.Environment.BiomesVisited.Where(ChronicleFilters.IsValidBiome))
+            {
+                bool known = memoryUpdate != null && memoryUpdate.PreviouslyKnownBiomes.Contains(biome);
+                if (known)
+                {
+                    continue;
+                }
+
+                ProgressionStage stage = InferStageFromBiome(biome);
+                DiscoveryValueTier tier = stage >= ProgressionStage.Mistlands || stage > progression.DominantStage
+                    ? DiscoveryValueTier.Critical
+                    : DiscoveryValueTier.High;
+
+                analysis.Discoveries.Add(new DiscoveryValueRecord
+                {
+                    Name = biome,
+                    Kind = "biome",
+                    Quantity = 1,
+                    WasKnownBefore = false,
+                    Tier = tier,
+                    Summary = $"první zaznamenaná návštěva biomu {biome}"
+                });
+            }
+        }
+
+        private static void AddStructureDiscoveries(
+            DiscoveryAnalysis analysis,
+            WorldMemoryUpdateResult memoryUpdate,
+            ProgressionContext progression)
+        {
+            if (memoryUpdate == null)
+            {
+                return;
+            }
+
+            foreach (var structure in memoryUpdate.NewImportantStructures)
+            {
+                if (memoryUpdate.PreviouslyKnownImportantStructures.Contains(structure.StructureName))
+                {
+                    continue;
+                }
+
+                ProgressionStage stage = InferStageFromStructure(structure.StructureName);
+                DiscoveryValueTier tier = stage >= ProgressionStage.Mistlands || stage > progression.DominantStage
+                    ? DiscoveryValueTier.Critical
+                    : DiscoveryValueTier.High;
+
+                analysis.Discoveries.Add(new DiscoveryValueRecord
+                {
+                    Name = structure.StructureName,
+                    Kind = "structure",
+                    Quantity = 1,
+                    WasKnownBefore = false,
+                    Tier = tier,
+                    Summary = $"nově zaznamenaná progresní stanice: {structure.StructureName}"
+                });
+            }
+        }
+
         private static DiscoveryValueTier DetermineDiscoveryTier(
             string itemName,
             int quantity,
@@ -196,7 +263,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
         {
             if (known)
             {
-                return quantity >= 20 ? DiscoveryValueTier.Medium : DiscoveryValueTier.Low;
+                return DiscoveryValueTier.Low;
             }
 
             ProgressionStage itemStage = MatchResource(itemName)?.Stage ?? InferStageFromName(itemName);
@@ -293,12 +360,84 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 return ProgressionStage.Mistlands;
             }
 
+            if (normalized.Contains("gjall") || normalized.Contains("yggdrasil") || normalized.Contains("carapace"))
+            {
+                return ProgressionStage.Mistlands;
+            }
+
             if (normalized.Contains("trophy") || normalized.Contains("trofej"))
             {
                 return ProgressionStage.Swamp;
             }
 
             return ProgressionStage.BlackForest;
+        }
+
+        private static ProgressionStage InferStageFromBiome(string biome)
+        {
+            string normalized = ChronicleFilters.NormalizeKey(biome);
+            if (normalized.Contains("ashlands"))
+            {
+                return ProgressionStage.Ashlands;
+            }
+
+            if (normalized.Contains("mistlands"))
+            {
+                return ProgressionStage.Mistlands;
+            }
+
+            if (normalized.Contains("plains"))
+            {
+                return ProgressionStage.Plains;
+            }
+
+            if (normalized.Contains("mountain"))
+            {
+                return ProgressionStage.Mountain;
+            }
+
+            if (normalized.Contains("swamp"))
+            {
+                return ProgressionStage.Swamp;
+            }
+
+            if (normalized.Contains("blackforest"))
+            {
+                return ProgressionStage.BlackForest;
+            }
+
+            return ProgressionStage.EarlyGame;
+        }
+
+        private static ProgressionStage InferStageFromStructure(string structureName)
+        {
+            string normalized = ChronicleFilters.NormalizeKey(structureName);
+            if (normalized.Contains("blackforge") || normalized.Contains("galdr") || normalized.Contains("eitrrefinery"))
+            {
+                return ProgressionStage.Mistlands;
+            }
+
+            if (normalized.Contains("blastfurnace") || normalized.Contains("windmill") || normalized.Contains("spinningwheel"))
+            {
+                return ProgressionStage.Plains;
+            }
+
+            if (normalized.Contains("artisan"))
+            {
+                return ProgressionStage.Mountain;
+            }
+
+            if (normalized.Contains("stonecutter"))
+            {
+                return ProgressionStage.Swamp;
+            }
+
+            if (normalized.Contains("forge") || normalized.Contains("kovarna"))
+            {
+                return ProgressionStage.BlackForest;
+            }
+
+            return ProgressionStage.EarlyGame;
         }
     }
 }

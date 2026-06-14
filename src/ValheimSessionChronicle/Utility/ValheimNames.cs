@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 using ValheimSessionChronicle.Core;
 
@@ -207,6 +208,40 @@ namespace ValheimSessionChronicle.Utility
             object damage = ValheimReflection.GetMemberValue(hitData, "m_damage");
             object damageTotal = SafeInvoke(damage, "GetTotalDamage");
             return damageTotal is float damageTotalValue ? damageTotalValue : 0f;
+        }
+
+        public static string GetHitDamageTypes(object hitData)
+        {
+            try
+            {
+                object damage = ValheimReflection.GetMemberValue(hitData, "m_damage");
+                if (damage == null)
+                {
+                    return string.Empty;
+                }
+
+                List<string> types = new List<string>();
+                foreach (FieldInfo field in damage.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (field.FieldType != typeof(float))
+                    {
+                        continue;
+                    }
+
+                    object raw = field.GetValue(damage);
+                    if (raw is float value && value > 0.01f)
+                    {
+                        types.Add(CleanDamageTypeName(field.Name));
+                    }
+                }
+
+                return string.Join(", ", types.Distinct(StringComparer.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                ChronicleLogger.Verbose($"Damage type lookup failed: {ex.Message}");
+                return string.Empty;
+            }
         }
 
         public static string GetCurrentBiomeName(Player player)
@@ -724,6 +759,13 @@ namespace ValheimSessionChronicle.Utility
                 .Replace("(Clone)", string.Empty)
                 .Replace("$", string.Empty)
                 .Replace("_", " ")
+                .Trim();
+        }
+
+        private static string CleanDamageTypeName(string value)
+        {
+            return Clean(value)
+                .Replace("m ", string.Empty)
                 .Trim();
         }
     }

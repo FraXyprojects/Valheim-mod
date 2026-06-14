@@ -106,6 +106,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 scores[stage] = 0;
             }
 
+            scores[ProgressionStage.EarlyGame] = 1;
             return scores;
         }
 
@@ -300,7 +301,6 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             }
 
             List<ProgressionConfidence> confidences = scores
-                .Where(pair => pair.Value > 0)
                 .Select(pair => new ProgressionConfidence
                 {
                     Stage = pair.Key,
@@ -308,11 +308,13 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                     Score = pair.Value,
                     Percentage = (int)Math.Round(pair.Value / total * 100.0)
                 })
-                .OrderByDescending(item => item.Score)
-                .ThenByDescending(item => item.Stage)
+                .OrderBy(item => item.Stage)
                 .ToList();
 
-            ProgressionConfidence dominant = confidences.First();
+            ProgressionConfidence dominant = confidences
+                .OrderByDescending(item => item.Score)
+                .ThenByDescending(item => item.Stage)
+                .First();
             return new ProgressionContext
             {
                 DominantStage = dominant.Stage,

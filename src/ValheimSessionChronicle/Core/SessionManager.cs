@@ -344,14 +344,17 @@ namespace ValheimSessionChronicle.Core
                 _recentLocalDamageTargets[victim.GetInstanceID()] = DateTime.UtcNow;
                 stats.CombatMoments++;
             }
-            else if (victim == localPlayer && attacker != null && attacker != localPlayer)
+            else if (victim == localPlayer && attacker != localPlayer)
             {
                 stats.CombatMoments++;
 
-                string attackerName = ValheimNames.GetCharacterName(attacker);
+                string attackerName = attacker == null ? "Prostředí" : ValheimNames.GetCharacterName(attacker);
                 float health = ValheimNames.GetCharacterHealth(localPlayer);
                 float maxHealth = ValheimNames.GetCharacterMaxHealth(localPlayer);
                 float incomingDamage = ValheimNames.GetHitTotalDamage(hitData);
+                string damageType = ValheimNames.GetHitDamageTypes(hitData);
+                float healthPercent = maxHealth > 0f ? health / maxHealth : 0f;
+                float damagePercent = maxHealth > 0f ? incomingDamage / maxHealth : 0f;
                 bool nearDeath = IsNearDeath(health, maxHealth);
                 string biome = GetLocalBiome();
 
@@ -361,15 +364,18 @@ namespace ValheimSessionChronicle.Core
                     Actor = localName,
                     EnemyName = attackerName,
                     Biome = biome,
-                    IsEliteEnemy = ChronicleFilters.IsDangerousEnemy(attackerName),
+                    IsEliteEnemy = attacker != null && ChronicleFilters.IsDangerousEnemy(attackerName),
                     IsIncomingDamage = true,
                     IncomingDamage = incomingDamage,
+                    DamageType = damageType,
                     HealthAfterHit = health,
                     MaxHealth = maxHealth,
+                    HealthPercent = healthPercent,
+                    DamagePercentOfMaxHealth = damagePercent,
                     IsNearDeath = nearDeath
                 });
 
-                if (ShouldCount("danger:" + attackerName, TimeSpan.FromSeconds(90)))
+                if (attacker != null && ShouldCount("danger:" + attackerName, TimeSpan.FromSeconds(90)))
                 {
                     stats.DangerousEncounters++;
                     if (ChronicleFilters.IsValidBiome(biome))
@@ -939,17 +945,12 @@ namespace ValheimSessionChronicle.Core
 
         private static bool IsNearDeath(float health, float maxHealth)
         {
-            if (health <= 0f)
+            if (health <= 0f || maxHealth <= 0f)
             {
                 return false;
             }
 
-            if (maxHealth > 0f && health / maxHealth <= 0.15f)
-            {
-                return true;
-            }
-
-            return health <= 20f;
+            return health / maxHealth <= 0.10f;
         }
 
         private static Vector3 GetPiecePosition(object piece, Vector3 fallback)

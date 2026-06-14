@@ -43,6 +43,7 @@ namespace ValheimSessionChronicle.Reporting
             AddPortalNetworkParagraph(session, worldMemory, paragraphs);
             AddProfileParagraph(profile, paragraphs);
             AddCombatDetails(session, mainPlayer, combat, paragraphs);
+            AddSurvivalDetails(mainPlayer, survival, paragraphs);
             AddEndingParagraph(session, paragraphs);
 
             if (paragraphs.Count == 0)
@@ -252,6 +253,45 @@ namespace ValheimSessionChronicle.Reporting
             else
             {
                 paragraphs.Add($"{mainPlayer} během cesty porazil hlavně {JoinCzech(topKills)}.");
+            }
+        }
+
+        private static void AddSurvivalDetails(string mainPlayer, SurvivalSummary survival, ICollection<string> paragraphs)
+        {
+            if (!survival.HasHealthData)
+            {
+                return;
+            }
+
+            if (survival.HeroicEscapes > 0)
+            {
+                paragraphs.Add($"{mainPlayer} unikl téměř jisté smrti s pouhými {survival.LowestHealthPercent:P0} zdraví a přesto se dokázal vrátit do boje.");
+                return;
+            }
+
+            if (survival.LastStandMoments > 0)
+            {
+                paragraphs.Add($"Nejostřejší střet vyústil v poslední odpor: i při kritickém zranění padli další nepřátelé a výprava se nerozpadla.");
+                return;
+            }
+
+            if (survival.NearDeathEscapes > 0)
+            {
+                paragraphs.Add($"{mainPlayer} přežil kritický moment, kdy zdraví kleslo na {survival.LowestHealthPercent:P0}.");
+                return;
+            }
+
+            switch (survival.StressTier)
+            {
+                case CombatIntensityTier.Extreme:
+                    paragraphs.Add("Přežití samo se stalo největší výzvou session; tlak zásahů a nízkého zdraví držel výpravu dlouho na hraně.");
+                    break;
+                case CombatIntensityTier.High:
+                    paragraphs.Add("Skupina ustála dlouhé bojové vypětí a několik tvrdých zásahů bez toho, aby ztratila tempo.");
+                    break;
+                case CombatIntensityTier.Medium:
+                    paragraphs.Add("Nebezpečí se vracelo v několika vlnách, ale výprava ho zvládla bez skutečně kritického zlomu.");
+                    break;
             }
         }
 

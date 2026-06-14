@@ -231,7 +231,7 @@ namespace ValheimSessionChronicle.Reporting
                 ? $"- Dominantní fáze podle pozorování: {progression.DominantLabel}"
                 : "- Dominantní fáze není jistá; klient zachytil jen slabé indicie.");
 
-            foreach (ProgressionConfidence confidence in progression.Confidences.Take(6))
+            foreach (ProgressionConfidence confidence in progression.Confidences.Take(7))
             {
                 builder.AppendLine($"- {confidence.Label}: {confidence.Percentage}%");
             }
@@ -425,6 +425,22 @@ namespace ValheimSessionChronicle.Reporting
             {
                 builder.AppendLine($"- Nejnižší zaznamenané HP: {survival.LowestHealth:0} ({survival.LowestHealthPercent:P0})");
                 builder.AppendLine($"- Near-death momenty: {survival.NearDeathMoments}");
+                builder.AppendLine($"- Největší jednotlivý zásah: {survival.LargestSingleHit:0} ({survival.LargestSingleHitPercent:P0})");
+                builder.AppendLine($"- Survival stress: {TranslateCombatTier(survival.StressTier)} ({survival.CombatStressScore:0})");
+                if (survival.HeroicEscapes > 0)
+                {
+                    builder.AppendLine($"- Heroic escape: {survival.HeroicEscapes}x");
+                }
+
+                if (survival.LastStandMoments > 0)
+                {
+                    builder.AppendLine($"- Last stand momenty: {survival.LastStandMoments}x");
+                }
+
+                if (survival.FiercestWindow != null)
+                {
+                    builder.AppendLine($"- Nejtvrdší bojové okno: {survival.FiercestWindow.Kills} zabití, {survival.FiercestWindow.IncomingHits} zásahů, minimum HP {survival.FiercestWindow.LowestHealthPercent:P0}");
+                }
             }
             else
             {

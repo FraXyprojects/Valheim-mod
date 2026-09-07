@@ -267,6 +267,19 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             }
 
             ProgressionStage itemStage = MatchResource(itemName)?.Stage ?? InferStageFromName(itemName);
+
+            // Filter out noise based on current progression.
+            // If the item stage is significantly lower than our current stage (e.g. EarlyGame rock when in Mistlands)
+            if (progression.DominantStage - itemStage >= 2)
+            {
+                // Only care if it's a massive operation
+                if (quantity < 50)
+                {
+                    return DiscoveryValueTier.Low;
+                }
+                return DiscoveryValueTier.Medium;
+            }
+
             if (itemStage >= ProgressionStage.Mistlands || itemStage > progression.DominantStage)
             {
                 return DiscoveryValueTier.Critical;

@@ -102,5 +102,55 @@ namespace ValheimSessionChronicle.Patches
                 ChronicleLogger.Error(ex, "ShipControlls.Interact tracking failed.");
             }
         }
+
+        public static void ConsumeItemPostfix(Player __instance, ItemDrop.ItemData item)
+        {
+            try
+            {
+                string foodName = item?.m_shared?.m_name;
+                if (!string.IsNullOrEmpty(foodName))
+                {
+                    ValheimSessionChroniclePlugin.Instance?.SessionManager?.RecordFoodEaten(__instance, foodName);
+                }
+            }
+            catch (Exception ex)
+            {
+                ChronicleLogger.Error(ex, "Player.ConsumeItem tracking failed.");
+            }
+        }
+
+        public static void TameableTamePostfix(Tameable __instance)
+        {
+            try
+            {
+                if (__instance != null)
+                {
+                    Character character = __instance.GetComponent<Character>();
+                    if (character != null)
+                    {
+                        ValheimSessionChroniclePlugin.Instance?.SessionManager?.RecordAnimalTamed(character);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ChronicleLogger.Error(ex, "Tameable.Tame tracking failed.");
+            }
+        }
+
+        public static void WearNTearApplyDamagePostfix(WearNTear __instance, HitData hit)
+        {
+            try
+            {
+                if (hit != null && hit.GetTotalDamage() > 0)
+                {
+                    ValheimSessionChroniclePlugin.Instance?.SessionManager?.RecordStructureDamaged(__instance, hit.GetTotalDamage());
+                }
+            }
+            catch (Exception ex)
+            {
+                ChronicleLogger.Error(ex, "WearNTear.ApplyDamage tracking failed.");
+            }
+        }
     }
 }

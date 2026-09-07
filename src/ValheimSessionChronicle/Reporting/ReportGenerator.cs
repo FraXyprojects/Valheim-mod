@@ -533,10 +533,26 @@ namespace ValheimSessionChronicle.Reporting
 
         private static void AppendEnvironment(StringBuilder builder, SessionData session)
         {
-            builder.AppendLine("Prostředí:");
+            builder.AppendLine("Prostředí & Přežití:");
             builder.AppendLine($"- Změny počasí: {session.Environment.WeatherChanges}");
             builder.AppendLine($"- Přechody do dne: {session.Environment.DayTransitions}");
             builder.AppendLine($"- Přechody do noci: {session.Environment.NightTransitions}");
+            if (session.Environment.StructuresDamaged > 0)
+            {
+                builder.AppendLine($"- Údery do struktur / poškození obrany: {session.Environment.StructuresDamaged}x");
+            }
+
+            int foodEaten = session.PlayerStats.Values.Sum(stats => stats.FoodEaten);
+            if (foodEaten > 0)
+            {
+                builder.AppendLine($"- Zkonzumované jídlo: {foodEaten}x");
+            }
+
+            int animalsTamed = session.PlayerStats.Values.Sum(stats => stats.AnimalsTamed);
+            if (animalsTamed > 0)
+            {
+                builder.AppendLine($"- Ochočená zvířata: {animalsTamed}x");
+            }
 
             if (session.Environment.WeatherSeen.Count > 0)
             {

@@ -3,10 +3,12 @@ using BepInEx.Configuration;
 namespace ValheimSessionChronicle.Configuration
 {
     public sealed class ChronicleConfig
-    {
-        public ConfigEntry<bool> EnableDiscordWebhook { get; }
+    {        public ConfigEntry<bool> EnableDiscordWebhook { get; }
         public ConfigEntry<string> DiscordWebhookURL { get; }
         public ConfigEntry<bool> SaveTXT { get; }
+        public ConfigEntry<bool> SaveMarkdown { get; }
+        public ConfigEntry<bool> SaveJSON { get; }
+        public ConfigEntry<bool> SaveDiscord { get; }
         public ConfigEntry<bool> EnableDebugJsonExport { get; }
         public ConfigEntry<bool> IncludeCompactTimeline { get; }
         public ConfigEntry<bool> EnableVerboseLogging { get; }
@@ -17,13 +19,134 @@ namespace ValheimSessionChronicle.Configuration
         public ConfigEntry<int> ReconnectToleranceSeconds { get; }
         public ConfigEntry<int> DisconnectDebounceSeconds { get; }
 
+        // Language
+        public ConfigEntry<string> Language { get; }
+
+        // UI
+        public ConfigEntry<bool> ShowStatusIndicator { get; }
+        public ConfigEntry<string> StatusIndicatorPosition { get; }
+        public ConfigEntry<int> StatusIndicatorOffsetX { get; }
+        public ConfigEntry<int> StatusIndicatorOffsetY { get; }
+
+        // Narrative & History
+        public ConfigEntry<string> NarrativeVerbosity { get; }
+        public ConfigEntry<bool> EnableChapters { get; }
+        public ConfigEntry<bool> EnableMoodAnalysis { get; }
+        public ConfigEntry<bool> EnableArchetypeAnalysis { get; }
+        public ConfigEntry<bool> EnableEnvironmentalStorytelling { get; }
+        public ConfigEntry<bool> EnableCombatAnalysis { get; }
+        public ConfigEntry<bool> EnableHPAnalysis { get; }
+        public ConfigEntry<bool> EnableCampAnalysis { get; }
+        public ConfigEntry<bool> EnableChronicleHistory { get; }
+
         public ChronicleConfig(ConfigFile config)
-        {
-            SaveTXT = config.Bind(
+        {            SaveTXT = config.Bind(
                 "Output",
                 nameof(SaveTXT),
                 true,
-                "Save one Czech human-readable TXT chronicle after disconnect.");
+                "Save one human-readable TXT chronicle after disconnect.");
+
+            SaveMarkdown = config.Bind(
+                "Output",
+                nameof(SaveMarkdown),
+                true,
+                "Save one human-readable Markdown chronicle after disconnect.");
+
+            SaveJSON = config.Bind(
+                "Output",
+                nameof(SaveJSON),
+                true,
+                "Save one canonical JSON chronicle after disconnect.");
+
+            SaveDiscord = config.Bind(
+                "Output",
+                nameof(SaveDiscord),
+                true,
+                "Save one Discord-optimized Markdown snippet after disconnect.");
+
+            Language = config.Bind(
+                "General",
+                nameof(Language),
+                "Čeština",
+                "Language of the generated reports (Čeština / English).");
+
+            ShowStatusIndicator = config.Bind(
+                "UI",
+                nameof(ShowStatusIndicator),
+                true,
+                "Show an in-game UI indicator for the Chronicle state.");
+
+            StatusIndicatorPosition = config.Bind(
+                "UI",
+                nameof(StatusIndicatorPosition),
+                "TopRight",
+                "Position of the UI indicator (TopLeft, TopCenter, TopRight, CenterLeft, CenterRight, BottomLeft, BottomCenter, BottomRight).");
+
+            StatusIndicatorOffsetX = config.Bind(
+                "UI",
+                nameof(StatusIndicatorOffsetX),
+                -10,
+                "Horizontal offset of the UI indicator.");
+
+            StatusIndicatorOffsetY = config.Bind(
+                "UI",
+                nameof(StatusIndicatorOffsetY),
+                -10,
+                "Vertical offset of the UI indicator.");
+
+            NarrativeVerbosity = config.Bind(
+                "Narrative",
+                nameof(NarrativeVerbosity),
+                "Normal",
+                "Verbosity of the generated narrative (Compact / Normal / Rich).");
+
+            EnableChapters = config.Bind(
+                "Narrative",
+                nameof(EnableChapters),
+                true,
+                "Generate narrative chapters for long sessions.");
+
+            EnableMoodAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnableMoodAnalysis),
+                true,
+                "Analyze and report the session mood.");
+
+            EnableArchetypeAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnableArchetypeAnalysis),
+                true,
+                "Analyze and report the dominant expedition archetype.");
+
+            EnableEnvironmentalStorytelling = config.Bind(
+                "Narrative",
+                nameof(EnableEnvironmentalStorytelling),
+                true,
+                "Include environmental factors (weather, biomes) in the story.");
+
+            EnableCombatAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnableCombatAnalysis),
+                true,
+                "Enable advanced combat intensity and encounter analysis.");
+
+            EnableHPAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnableHPAnalysis),
+                true,
+                "Enable client-side survival and near-death analysis.");
+
+            EnableCampAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnableCampAnalysis),
+                true,
+                "Enable advanced camp tier classification and structure clustering.");
+
+            EnableChronicleHistory = config.Bind(
+                "Output",
+                nameof(EnableChronicleHistory),
+                true,
+                "Maintain a ChronicleHistory.md file accumulating all sessions.");
 
             EnableDebugJsonExport = config.Bind(
                 "Debug",

@@ -67,6 +67,10 @@ namespace ValheimSessionChronicle.Core
 
             Transition(SessionLifecycleState.Disconnected, reason);
             _wasInWorld = false;
+
+            // Clean up to ensure complete termination
+            _lossStartedUtc = default(DateTime);
+            _disconnectSignalUtc = default(DateTime);
         }
 
         private void HandleConfirmedWorld(DateTime now)
@@ -119,10 +123,13 @@ namespace ValheimSessionChronicle.Core
             double reconnectSeconds = (now - _lossStartedUtc).TotalSeconds;
             if (_disconnectSignalUtc != default(DateTime))
             {
+                // Measure from the disconnect signal to guarantee accurate timeout
                 reconnectSeconds = Math.Max(reconnectSeconds, (now - _disconnectSignalUtc).TotalSeconds);
             }
 
-            if (reconnectSeconds >= Math.Max(30, _config.ReconnectToleranceSeconds.Value))
+            double tolerance = Math.Max(60, _config.ReconnectToleranceSeconds.Value); // Enforce at least 60s as per the prompt requirements
+
+            if (reconnectSeconds >= tolerance)
             {
                 _sessionManager.EndSession("Reconnect timeout expired; world stayed unloaded.", DisconnectReason.WatcherLostSession);
                 Transition(SessionLifecycleState.Disconnected, "Reconnect timeout expired.");

@@ -53,4 +53,22 @@
     <MakeDir Directories="$(PackagePluginDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackagePluginDir)" />
   </Target>
+
+  <Target Name="CreateThunderstoreZip" AfterTargets="CopyToThunderstorePackageFolder" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <ZipDir>$(MSBuildProjectDirectory)\..\..\dist</ZipDir>
+      <ZipFile>$(ZipDir)\ValheimSessionChronicle-v$(Version).zip</ZipFile>
+      <PackageStagingDir>$(MSBuildProjectDirectory)\..\..\package</PackageStagingDir>
+      <RootStagingDir>$(MSBuildProjectDirectory)\..\..</RootStagingDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(ZipDir)" />
+    <!-- Copy root files to package staging temporarily so we can zip them nicely -->
+    <Copy SourceFiles="$(RootStagingDir)\manifest.json" DestinationFolder="$(PackageStagingDir)" />
+    <Copy SourceFiles="$(RootStagingDir)\icon.png" DestinationFolder="$(PackageStagingDir)" />
+    <Copy SourceFiles="$(RootStagingDir)\README.md" DestinationFolder="$(PackageStagingDir)" />
+    <Copy SourceFiles="$(RootStagingDir)\CHANGELOG.md" DestinationFolder="$(PackageStagingDir)" Condition="Exists('$(RootStagingDir)\CHANGELOG.md')" />
+
+    <ZipDirectory SourceDirectory="$(PackageStagingDir)" DestinationFile="$(ZipFile)" Overwrite="true" />
+    <Message Text="Created Thunderstore package at $(ZipFile)" Importance="High" />
+  </Target>
 </Project>

@@ -1,13 +1,9 @@
 # Changelog
 
 ## 1.0.0
-
-- Initial project structure.
-- Client-side session tracking architecture.
-- Czech TXT chronicles with debug JSON export disabled by default.
-- Defensive Harmony patches for session, player, combat, building, crafting, travel, and environment activity.
-- Optional simple Discord webhook output.
-- Robust session lifecycle state machine with reconnect tolerance.
-- Combat intensity, survival, expedition profile, and camp classification analyzers.
-- Report filenames based on dominant expedition character and biome.
-- Lightweight per-world memory with persistent camp evolution, portals, important structures, and world-specific report folders.
+- **Major Architecture Overhaul**: Replaced hard-coded Czech strings with a generic Localization Engine. Added full English support.
+- **Smart Analytics**: Added rolling windows for `CombatIntensityAnalyzer`, improved `ExpeditionProfileAnalyzer` weighted scoring.
+- **In-Game UI**: Added a configurable, unobtrusive in-game status indicator using Unity uGUI.
+- **Session Lifecycle**: Repaired temporary disconnect handling to guarantee "One Session = One Chronicle".
+- **Output Ecosystem**: Added Markdown, Discord-optimized Markdown, Canonical JSON, and continuity tracking (`ChronicleHistory.md`).
+- **Release Automation**: Integrated a Thunderstore packaging script directly into MSBuild.

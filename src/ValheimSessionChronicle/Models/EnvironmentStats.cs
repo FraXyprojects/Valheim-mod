@@ -10,6 +10,7 @@ namespace ValheimSessionChronicle.Models
         public int NightTransitions { get; set; }
         public int PortalUses { get; set; }
         public int VisibleEnemyDeaths { get; set; }
+        public int StructuresDamaged { get; set; }
         public List<string> WeatherSeen { get; set; } = new List<string>();
         public List<string> BiomesVisited { get; set; } = new List<string>();
         public List<string> OutpostBiomes { get; set; } = new List<string>();

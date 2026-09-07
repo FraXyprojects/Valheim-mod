@@ -30,6 +30,10 @@ namespace ValheimSessionChronicle.Patches
             PatchAllOverloads(harmony, typeof(TeleportWorld), "Teleport", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.PortalTeleportPostfix));
             PatchAllOverloads(harmony, typeof(Bed), "Interact", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.BedInteractPostfix));
             PatchAllOverloads(harmony, typeof(ShipControlls), "Interact", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.ShipInteractPostfix));
+
+            PatchAllOverloads(harmony, typeof(Player), "ConsumeItem", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.ConsumeItemPostfix));
+            PatchAllOverloads(harmony, typeof(Tameable), "Tame", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.TameableTamePostfix));
+            PatchAllOverloads(harmony, typeof(WearNTear), "ApplyDamage", typeof(ActivityPatches), postfixName: nameof(ActivityPatches.WearNTearApplyDamagePostfix));
         }
 
         private static void PatchAllOverloads(

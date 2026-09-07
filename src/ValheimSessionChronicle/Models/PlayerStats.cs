@@ -19,7 +19,11 @@ namespace ValheimSessionChronicle.Models
         public int EnemiesKilled { get; set; }
         public int BossesKilled { get; set; }
         public int TombstonesCreated { get; set; }
+        public int FoodEaten { get; set; }
+        public int AnimalsTamed { get; set; }
         public List<string> BiomesVisited { get; set; } = new List<string>();
+        public Dictionary<string, int> FoodsConsumed { get; set; } = new Dictionary<string, int>();
+        public Dictionary<string, int> AnimalsTamedByType { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, int> ItemPickups { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, int> CraftedItems { get; set; } = new Dictionary<string, int>();
         public Dictionary<string, int> PiecesPlaced { get; set; } = new Dictionary<string, int>();

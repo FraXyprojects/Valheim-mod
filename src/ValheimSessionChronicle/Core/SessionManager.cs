@@ -886,6 +886,80 @@ namespace ValheimSessionChronicle.Core
                 duplicateCooldownSeconds: 20);
         }
 
+        public void RecordFoodEaten(Player player, string foodName)
+        {
+            if (_current == null || player == null || !ValheimNames.IsLocalPlayer(player) || string.IsNullOrWhiteSpace(foodName))
+            {
+                return;
+            }
+
+            string playerName = ValheimNames.GetPlayerName(player);
+            if (!ShouldCount("food:" + playerName + ":" + foodName, TimeSpan.FromSeconds(2)))
+            {
+                return;
+            }
+
+            PlayerStats stats = EnsurePlayerStats(playerName);
+            stats.FoodEaten++;
+            Increment(stats.FoodsConsumed, foodName);
+
+            // Trigger an event for the first consumption of this food during this session
+            if (stats.FoodsConsumed[foodName] == 1)
+            {
+                _events.Add(
+                    "FoodEaten",
+                    EventCategories.Player,
+                    $"{playerName} poprvé pojedl: {foodName}.",
+                    actor: playerName,
+                    target: foodName,
+                    importance: EventImportance.Low,
+                    duplicateKey: "food-event:" + playerName + ":" + foodName,
+                    duplicateCooldownSeconds: 3600);
+            }
+        }
+
+        public void RecordAnimalTamed(Character animal)
+        {
+            if (_current == null || animal == null)
+            {
+                return;
+            }
+
+            string animalName = ValheimNames.GetCharacterName(animal);
+            if (string.IsNullOrWhiteSpace(animalName)) return;
+
+            string playerName = _current.LocalPlayerName;
+            PlayerStats stats = EnsurePlayerStats(playerName);
+            stats.AnimalsTamed++;
+            Increment(stats.AnimalsTamedByType, animalName);
+
+            _events.Add(
+                "AnimalTamed",
+                EventCategories.Player,
+                $"{playerName} úspěšně ochočil zvíře: {animalName}.",
+                actor: playerName,
+                target: animalName,
+                position: ValheimNames.FormatPosition(animal.transform.position),
+                importance: EventImportance.Medium,
+                duplicateKey: "tame-event:" + animalName,
+                duplicateCooldownSeconds: 60);
+        }
+
+        public void RecordStructureDamaged(object structure, float damage)
+        {
+            if (_current == null) return;
+
+            // Only care about significant hits to filter out tiny damages
+            if (damage < 10f) return;
+
+            if (!ShouldCount("structure_damage_global", TimeSpan.FromSeconds(5)))
+            {
+                return;
+            }
+
+            _current.Environment.StructuresDamaged++;
+        }
+
         private PlayerStats EnsurePlayerStats(string playerName)
         {
             if (string.IsNullOrWhiteSpace(playerName))

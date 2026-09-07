@@ -40,7 +40,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 return;
             }
 
-            phases.Add($"Podle zachycených zásob a stanic už svět nese znaky fáze {progression.DominantLabel}.");
+            phases.Add(NarrativeDatabase.GetProgressionPhase(progression.DominantLabel));
         }
 
         private static void AddExplorationPhase(SessionData session, ICollection<string> phases)
@@ -52,11 +52,11 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 
             if (biomes.Count >= 2)
             {
-                phases.Add($"Výprava se postupně přesunula z {biomes.First()} až do {biomes.Last()}, takže měla jasný průzkumný oblouk.");
+                phases.Add(NarrativeDatabase.GetMultiBiomeExploration(biomes.First(), biomes.Last()));
             }
             else if (biomes.Count == 1)
             {
-                phases.Add($"Hlavním dějištěm výpravy byl biome {biomes[0]}.");
+                phases.Add(NarrativeDatabase.GetSingleBiomeExploration(biomes[0]));
             }
         }
 
@@ -69,7 +69,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             }
 
             string biome = ChronicleFilters.IsValidBiome(strongest.Biome) ? $" v biomu {strongest.Biome}" : string.Empty;
-            phases.Add($"Stavební část výpravy vyústila v objekt typu {strongest.Name}{biome}, se zhruba {strongest.StructureCount} postavenými díly.");
+            phases.Add(NarrativeDatabase.GetCampGeneric(strongest.Name, biome, strongest.StructureCount));
         }
 
         private static bool AddPersistentCampPhase(WorldMemoryUpdateResult memoryUpdate, ICollection<string> phases)
@@ -88,23 +88,23 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             string biome = ChronicleFilters.IsValidBiome(change.Biome) ? $" v biomu {change.Biome}" : string.Empty;
             if (change.IsNewCamp)
             {
-                phases.Add($"Na mapě přibyl nový opěrný bod: {change.NewTierName}{biome}.");
+                phases.Add(NarrativeDatabase.GetCampNew(change.NewTierName, biome));
             }
             else if (change.IsTierUpgrade)
             {
-                phases.Add($"Dříve známý {change.PreviousTierName}{biome} se posunul na úroveň {change.NewTierName}.");
+                phases.Add(NarrativeDatabase.GetCampUpgrade(change.PreviousTierName, biome, change.NewTierName));
             }
             else if (change.AddedAdvancedStation || change.AddedForge)
             {
-                phases.Add($"Staré zázemí{biome} dostalo další řemeslnou infrastrukturu a začalo působit jako důležitější základna.");
+                phases.Add(NarrativeDatabase.GetCampAddedAdvancedStation(biome));
             }
             else if (change.AddedDefenses)
             {
-                phases.Add($"Skupina posílila jedno ze svých zavedených míst{biome} o obranné prvky.");
+                phases.Add(NarrativeDatabase.GetCampAddedDefenses(biome));
             }
             else
             {
-                phases.Add($"Známé zázemí{biome} bylo během session dál rozšířeno a upevněno.");
+                phases.Add(NarrativeDatabase.GetCampExpanded(biome));
             }
 
             return true;
@@ -118,7 +118,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 return;
             }
 
-            phases.Add($"Zásobovací linku session nejvíc určovala oblast '{operation.OperationType}'.");
+            phases.Add(NarrativeDatabase.GetResourceOperation(operation.OperationType));
         }
 
         private static void AddCombatPhase(CombatIntensityResult combat, ICollection<string> phases)
@@ -126,16 +126,16 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             switch (combat.Tier)
             {
                 case CombatIntensityTier.Extreme:
-                    phases.Add("Skupina strávila velkou část výpravy bojem o přežití a tlak nepřátel určoval tempo celé session.");
+                    phases.Add(NarrativeDatabase.GetCombatExtreme());
                     break;
                 case CombatIntensityTier.High:
-                    phases.Add("Velká část výpravy se nesla ve znamení souvislého boje a neustálého hlídání prostoru.");
+                    phases.Add(NarrativeDatabase.GetCombatHigh());
                     break;
                 case CombatIntensityTier.Medium:
-                    phases.Add("Postup výpravy opakovaně přerušoval odpor místních nepřátel.");
+                    phases.Add(NarrativeDatabase.GetCombatMedium());
                     break;
                 default:
-                    phases.Add("Výprava zůstala převážně klidná a boj tvořil spíš okrajové epizody.");
+                    phases.Add(NarrativeDatabase.GetCombatLow());
                     break;
             }
         }
@@ -146,34 +146,34 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 
             if (survival.HasHealthData && survival.HeroicEscapes > 0)
             {
-                phases.Add($"{playerName} se nejméně jednou dostal na hranici jisté smrti, ale dokázal pokračovat v boji i po kritickém zranění.");
+                phases.Add(NarrativeDatabase.GetSurvivalHeroicEscape(playerName));
                 return;
             }
 
             if (survival.HasHealthData && survival.LastStandMoments > 0)
             {
-                phases.Add($"Jeden z nejtvrdších střetů měl charakter posledního odporu: {playerName} přežil s minimem sil a krátce nato dál porážel nepřátele.");
+                phases.Add(NarrativeDatabase.GetSurvivalLastStand(playerName));
                 return;
             }
 
             if (survival.HasHealthData && survival.NearDeathEscapes > 0)
             {
-                phases.Add($"{playerName} unikl smrti jen s minimem sil; nejnižší zachycené zdraví kleslo na {survival.LowestHealthPercent:P0}.");
+                phases.Add(NarrativeDatabase.GetSurvivalNearDeath(playerName, survival.LowestHealthPercent.ToString("P0")));
                 return;
             }
 
             int deaths = session.PlayerStats.Values.Sum(stats => stats.Deaths);
             if (deaths == 0 && (int)survival.StressTier >= (int)CombatIntensityTier.High)
             {
-                phases.Add("Navzdory dlouhodobému tlaku a opakovaným zraněním výprava přežila bez ztráty života.");
+                phases.Add(NarrativeDatabase.GetSurvivalNoDeathsHighStress());
             }
             else if ((int)survival.StressTier >= (int)CombatIntensityTier.Medium)
             {
-                phases.Add("Výprava čelila opakovanému nebezpečí, které postupně zvedalo tlak na přežití.");
+                phases.Add(NarrativeDatabase.GetSurvivalMediumStress());
             }
             else if (deaths > 0)
             {
-                phases.Add("Výprava měla i fázi obnovy po smrti, po které bylo potřeba znovu získat tempo.");
+                phases.Add(NarrativeDatabase.GetSurvivalWithDeaths());
             }
         }
 
@@ -186,11 +186,11 @@ namespace ValheimSessionChronicle.Reporting.Analysis
 
             if (survival.Deaths == 0)
             {
-                phases.Add("Boss byl poražen bez jediné zaznamenané smrti.");
+                phases.Add(NarrativeDatabase.GetBossNoDeath());
             }
             else
             {
-                phases.Add("Boss fight se stal jedním z hlavních zlomů celé session.");
+                phases.Add(NarrativeDatabase.GetBossWithDeath());
             }
         }
     }

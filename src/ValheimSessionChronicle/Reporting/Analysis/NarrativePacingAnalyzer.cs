@@ -219,11 +219,11 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                      string actor = actorGroup.Key;
                      var actorEvents = actorGroup.Value;
 
-                     // Strong evidence: Requires both a position (so we know exactly where they are)
-                     // AND multiple events to prove they are actively doing things in the exact timeframe.
-                     bool hasExplicitPosition = actorEvents.Any(e => !string.IsNullOrEmpty(e.Position));
-
-                     // We DO NOT use matching biome alone as strong evidence anymore. That is medium at best.
+                     // Strong evidence: Because we cannot cross-compare exact distances without refactoring,
+                     // we strictly bound "Strong Evidence" to actors generating multiple events
+                     // locally AND explicitly confirming position. This prevents automatically grouping
+                     // players that were in the same biome but miles apart.
+                     bool hasExplicitPosition = actorEvents.Any(e => !string.IsNullOrEmpty(e.Position) && e.Position != "0,0,0");
 
                      if (actorEvents.Count >= 2 && hasExplicitPosition)
                      {

@@ -45,7 +45,7 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                     EventCount = windowEvents.Count,
                     Events = windowEvents,
                     DominantBiome = DetermineDominantBiome(windowEvents),
-                    Intensity = CalculateIntensity(windowEvents),
+                    Intensity = CalculateIntensity(windowEvents, currentStart, currentEnd),
                 };
 
                 phase.PhaseType = DeterminePhaseType(phase, windowEvents);
@@ -70,9 +70,9 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 if (currentPhase.PhaseType == nextWindow.PhaseType)
                 {
                     currentPhase.EndTime = nextWindow.EndTime;
-                    currentPhase.Events.AddRange(nextWindow.Events.Where(e => !currentPhase.Events.Contains(e)));
+                    currentPhase.Events = currentPhase.Events.Union(nextWindow.Events).OrderBy(e => e.TimestampUtc).ToList();
                     currentPhase.EventCount = currentPhase.Events.Count;
-                    currentPhase.Intensity = Math.Max(currentPhase.Intensity, nextWindow.Intensity);
+                    currentPhase.Intensity = CalculateIntensity(currentPhase.Events, currentPhase.StartTime, currentPhase.EndTime);
 
                     if (string.IsNullOrEmpty(currentPhase.DominantBiome) && !string.IsNullOrEmpty(nextWindow.DominantBiome))
                     {
@@ -85,10 +85,9 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                     if (currentPhase.Duration.TotalMinutes < 1.5 && merged.Count > 0 && merged.Last().PhaseType == nextWindow.PhaseType)
                     {
                          merged.Last().EndTime = nextWindow.EndTime;
-                         merged.Last().Events.AddRange(currentPhase.Events);
-                         merged.Last().Events.AddRange(nextWindow.Events.Where(e => !merged.Last().Events.Contains(e)));
+                         merged.Last().Events = merged.Last().Events.Union(currentPhase.Events).Union(nextWindow.Events).OrderBy(e => e.TimestampUtc).ToList();
                          merged.Last().EventCount = merged.Last().Events.Count;
-                         merged.Last().Intensity = Math.Max(merged.Last().Intensity, Math.Max(currentPhase.Intensity, nextWindow.Intensity));
+                         merged.Last().Intensity = CalculateIntensity(merged.Last().Events, merged.Last().StartTime, merged.Last().EndTime);
                          currentPhase = ClonePhase(merged.Last());
                          merged.RemoveAt(merged.Count - 1);
                     }
@@ -133,8 +132,10 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             };
         }
 
-        private double CalculateIntensity(List<SessionEvent> events)
+        private double CalculateIntensity(List<SessionEvent> events, DateTime startTime, DateTime endTime)
         {
+            if (events.Count == 0) return 0;
+
             double score = 0;
             foreach (var e in events)
             {
@@ -154,8 +155,15 @@ namespace ValheimSessionChronicle.Reporting.Analysis
             }
 
             // Bonus for temporal density (more events in short window)
-            if (events.Count > 10) score *= 1.2;
-            if (events.Count > 20) score *= 1.5;
+            double secondsElapsed = (endTime - startTime).TotalSeconds;
+            if (secondsElapsed > 0)
+            {
+                 double eventsPerSecond = events.Count / secondsElapsed;
+                 if (eventsPerSecond >= 1.0) score *= 3.0; // Extremely dense (e.g. 10 in 10s)
+                 else if (eventsPerSecond >= 0.5) score *= 2.0; // Very dense (e.g. 15 in 30s)
+                 else if (eventsPerSecond >= 0.25) score *= 1.5; // Dense (e.g. 15 in 60s)
+                 else if (eventsPerSecond <= 0.05) score *= 0.8; // Sparse
+            }
 
             return score;
         }

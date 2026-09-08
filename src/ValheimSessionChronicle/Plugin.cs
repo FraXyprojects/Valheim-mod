@@ -41,9 +41,12 @@ namespace ValheimSessionChronicle
             ChronicleLogger.Initialize(Logger, ModConfig);
             LocalizationManager.Initialize(ModConfig);
 
+            var reportGenerator = new ReportGenerator();
+            reportGenerator.Initialize(ModConfig);
+
             SessionManager = new SessionManager(
                 ModConfig,
-                new SessionStorage(new ReportGenerator()),
+                new SessionStorage(reportGenerator),
                 new DiscordWebhookClient());
             LifecycleManager = new SessionLifecycleManager(SessionManager, ModConfig);
 

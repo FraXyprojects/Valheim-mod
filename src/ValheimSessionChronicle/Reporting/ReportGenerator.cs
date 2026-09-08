@@ -6,6 +6,7 @@ using System.Text;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
 using ValheimSessionChronicle.Reporting.Analysis;
+using ValheimSessionChronicle.Configuration;
 using ValheimSessionChronicle.Utility;
 using ValheimSessionChronicle.WorldMemory;
 
@@ -23,10 +24,17 @@ namespace ValheimSessionChronicle.Reporting
         private readonly CampClassificationSystem _campClassification = new CampClassificationSystem();
         private readonly ProgressionContextAnalyzer _progressionAnalyzer = new ProgressionContextAnalyzer();
         private readonly DiscoveryValueAnalyzer _discoveryAnalyzer = new DiscoveryValueAnalyzer();
+        private readonly NarrativePacingAnalyzer _pacingAnalyzer = new NarrativePacingAnalyzer();
+
+        private ChronicleConfig _config;
+
+        public void Initialize(ChronicleConfig config)
+        {
+            _config = config;
+        }
 
         public string Generate(
             SessionData session,
-            bool includeCompactTimeline,
             WorldMemoryData worldMemory,
             WorldMemoryUpdateResult memoryUpdate)
         {
@@ -37,21 +45,22 @@ namespace ValheimSessionChronicle.Reporting
             ProgressionContext progression = _progressionAnalyzer.Analyze(session, worldMemory);
             DiscoveryAnalysis discovery = _discoveryAnalyzer.Analyze(session, worldMemory, memoryUpdate, progression);
             ExpeditionProfileResult profile = _profileAnalyzer.Analyze(session, combat, survival, discovery);
+            NarrativePacingResult pacing = _pacingAnalyzer.Analyze(session);
             StringBuilder builder = new StringBuilder(8192);
             DateTime localStart = session.StartTimeUtc.ToLocalTime();
 
             AppendHeader(builder);
             AppendMetadata(builder, session, localStart);
-            AppendPlayers(builder, session);
-            AppendStory(builder, session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery);
-            AppendWorldContinuity(builder, worldMemory, memoryUpdate);
-            AppendProgressionContext(builder, progression);
-            AppendDiscoveryContext(builder, discovery);
             AppendExpeditionProfile(builder, profile);
+            AppendStory(builder, session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery, pacing);
             AppendHighlights(builder, meaningfulEvents);
             AppendStats(builder, session, combat, survival, camps);
 
-            if (includeCompactTimeline)
+            AppendWorldContinuity(builder, worldMemory, memoryUpdate);
+            AppendProgressionContext(builder, progression);
+            AppendDiscoveryContext(builder, discovery);
+
+            if (_config?.IncludeCompactTimeline.Value ?? true)
             {
                 AppendCompactTimeline(builder, meaningfulEvents);
             }
@@ -175,13 +184,14 @@ namespace ValheimSessionChronicle.Reporting
             WorldMemoryData worldMemory,
             WorldMemoryUpdateResult memoryUpdate,
             ProgressionContext progression,
-            DiscoveryAnalysis discovery)
+            DiscoveryAnalysis discovery,
+            NarrativePacingResult pacing)
         {
             builder.AppendLine(SectionLine);
             builder.AppendLine("PŘÍBĚH SESSION");
             builder.AppendLine(SectionLine);
             builder.AppendLine();
-            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery));
+            builder.AppendLine(_storyGenerator.Generate(session, meaningfulEvents, combat, survival, profile, camps, worldMemory, memoryUpdate, progression, discovery, pacing));
             builder.AppendLine();
         }
 

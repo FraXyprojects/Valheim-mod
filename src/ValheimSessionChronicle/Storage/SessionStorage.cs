@@ -29,7 +29,7 @@ namespace ValheimSessionChronicle.Storage
 
             if (config.SaveTXT.Value)
             {
-                result.TxtReport = _reportGenerator.Generate(session, config.IncludeCompactTimeline.Value, memoryContext.Memory, memoryContext.UpdateResult);
+                result.TxtReport = _reportGenerator.Generate(session, memoryContext.Memory, memoryContext.UpdateResult);
                 result.TxtPath = Path.Combine(memoryContext.WorldDirectory, baseName + ".txt");
                 File.WriteAllText(result.TxtPath, result.TxtReport);
             }

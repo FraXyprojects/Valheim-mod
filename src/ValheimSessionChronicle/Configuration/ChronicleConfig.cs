@@ -33,6 +33,7 @@ namespace ValheimSessionChronicle.Configuration
         public ConfigEntry<bool> EnableChapters { get; }
         public ConfigEntry<bool> EnableMoodAnalysis { get; }
         public ConfigEntry<bool> EnableArchetypeAnalysis { get; }
+        public ConfigEntry<bool> EnablePacingAnalysis { get; }
         public ConfigEntry<bool> EnableEnvironmentalStorytelling { get; }
         public ConfigEntry<bool> EnableCombatAnalysis { get; }
         public ConfigEntry<bool> EnableHPAnalysis { get; }
@@ -117,6 +118,12 @@ namespace ValheimSessionChronicle.Configuration
                 nameof(EnableArchetypeAnalysis),
                 true,
                 "Analyze and report the dominant expedition archetype.");
+
+            EnablePacingAnalysis = config.Bind(
+                "Analysis",
+                nameof(EnablePacingAnalysis),
+                true,
+                "Analyze and report the narrative pacing (flow and intensity over time).");
 
             EnableEnvironmentalStorytelling = config.Bind(
                 "Narrative",

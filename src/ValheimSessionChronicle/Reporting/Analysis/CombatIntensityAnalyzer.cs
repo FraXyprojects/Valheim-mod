@@ -33,7 +33,14 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 .FirstOrDefault() ?? string.Empty;
 
             result.LongestCombatChainSeconds = EstimateLongestCombatChain(samples);
-            double burstScore = Math.Max(ScoreWindow(samples, TimeSpan.FromSeconds(30)), ScoreWindow(samples, TimeSpan.FromSeconds(90)));
+
+            // Specifically evaluate across 30, 60, and 90-second rolling windows as requested
+            double burst30 = ScoreWindow(samples, TimeSpan.FromSeconds(30));
+            double burst60 = ScoreWindow(samples, TimeSpan.FromSeconds(60));
+            double burst90 = ScoreWindow(samples, TimeSpan.FromSeconds(90));
+
+            double burstScore = Math.Max(burst30, Math.Max(burst60, burst90));
+
             double pressureScore =
                 result.TotalKills * 0.8 +
                 result.EliteKills * 3.0 +

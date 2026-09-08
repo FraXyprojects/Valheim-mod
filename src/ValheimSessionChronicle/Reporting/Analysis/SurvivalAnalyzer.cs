@@ -304,5 +304,18 @@ namespace ValheimSessionChronicle.Reporting.Analysis
         {
             return sample.HealthPercent > 0f && sample.HealthPercent <= threshold;
         }
+
+        public static void SafelyRecordFlawlessBossEscape(SessionData session, IReadOnlyList<CombatActivitySample> samples)
+        {
+            if (session.Events.Any(e => e.Type == EventTypes.BossKilled) && session.PlayerStats.Values.Sum(s => s.Deaths) == 0)
+            {
+                // Only consider it flawless if we actually have health data and the lowest HP didn't drop below 30%
+                var bossFightSamples = samples.Where(s => s.IsBoss).ToList();
+                if (bossFightSamples.Count > 0 && bossFightSamples.All(s => s.HealthPercent > 0.3f))
+                {
+                    session.Metadata["FlawlessBossKill"] = "true";
+                }
+            }
+        }
     }
 }

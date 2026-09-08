@@ -32,7 +32,9 @@ namespace ValheimSessionChronicle.Core
             EventImportance importance = EventImportance.Low,
             string duplicateKey = null,
             double duplicateCooldownSeconds = 0,
-            Dictionary<string, string> metadata = null)
+            Dictionary<string, string> metadata = null,
+            string eventId = null,
+            string[] eventArgs = null)
         {
             if (_session == null)
             {
@@ -40,6 +42,13 @@ namespace ValheimSessionChronicle.Core
             }
 
             DateTime now = DateTime.UtcNow;
+            double sessionSeconds = Math.Max(0, (now - _session.StartTimeUtc).TotalSeconds);
+
+            if (!EventSanitizer.IsValid(type, category, description, actor, target, biome, sessionSeconds))
+            {
+                return null;
+            }
+
             if (!string.IsNullOrWhiteSpace(duplicateKey) && duplicateCooldownSeconds > 0)
             {
                 if (_lastEventByKey.TryGetValue(duplicateKey, out DateTime previous) &&
@@ -51,22 +60,31 @@ namespace ValheimSessionChronicle.Core
                 _lastEventByKey[duplicateKey] = now;
             }
 
+            string finalDescription = description ?? string.Empty;
+            if (string.IsNullOrEmpty(finalDescription) && !string.IsNullOrEmpty(eventId))
+            {
+                finalDescription = ValheimSessionChronicle.Localization.LocalizationManager.GetString(eventId, eventArgs ?? new string[0]);
+            }
+
             SessionEvent entry = new SessionEvent
             {
                 TimestampUtc = now,
-                SessionSeconds = Math.Max(0, (now - _session.StartTimeUtc).TotalSeconds),
+                SessionSeconds = sessionSeconds,
                 Type = type,
                 Category = category,
                 Actor = actor ?? string.Empty,
                 Target = target ?? string.Empty,
                 Biome = biome ?? string.Empty,
                 Position = position ?? string.Empty,
-                Description = description ?? string.Empty,
+                Description = finalDescription,
+                EventId = eventId ?? string.Empty,
+                EventArgs = eventArgs ?? new string[0],
                 Importance = importance,
                 Metadata = metadata ?? new Dictionary<string, string>()
             };
 
             _session.Events.Add(entry);
+
             ChronicleLogger.Verbose($"Event: {entry.Type} | {entry.Description}");
             return entry;
         }

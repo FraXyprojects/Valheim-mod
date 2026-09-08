@@ -24,13 +24,16 @@ namespace ValheimSessionChronicle.Storage
                 ? combat.DominantCombatBiome
                 : session.Environment.BiomesVisited.LastOrDefault(ChronicleFilters.IsValidBiome) ?? "Unknown";
 
-            return MakeSafeFileName($"{date}_{profileToken}Vyprava_{biome}_{session.SessionId.Substring(0, 8)}");
+            string shortId = string.IsNullOrEmpty(session.SessionId) ? Guid.NewGuid().ToString("N").Substring(0, 4) : session.SessionId.Substring(0, 4);
+
+            return MakeSafeFileName($"{date}_{profileToken}_{biome}_{shortId}");
         }
 
         private static string BuildProfileToken(ExpeditionProfileResult profile)
         {
-            string combined = string.Concat(profile.DominantScores.Select(score => score.FileToken));
-            return string.IsNullOrWhiteSpace(combined) ? "Kronika" : combined;
+            var dominant = profile.DominantScores.FirstOrDefault();
+            string profileStr = dominant != null ? dominant.FileToken : "Chronicle";
+            return profileStr;
         }
 
         private static string MakeSafeFileName(string value)

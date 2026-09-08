@@ -92,16 +92,20 @@ namespace ValheimSessionChronicle.Core
             _events.Add(
                 EventTypes.SessionStarted,
                 EventCategories.Session,
-                $"Session začala na serveru {_current.ServerName}.",
+                "", // Use localization
                 actor: localPlayer,
-                importance: EventImportance.High);
+                importance: EventImportance.High,
+                eventId: "SessionStarted",
+                eventArgs: new[] { _current.ServerName });
 
             _events.Add(
                 EventTypes.PlayerJoined,
                 EventCategories.Player,
-                $"{localPlayer} se připojil k serveru.",
+                "", // Use localization
                 actor: localPlayer,
-                importance: EventImportance.Medium);
+                importance: EventImportance.Medium,
+                eventId: "PlayerJoined",
+                eventArgs: new[] { localPlayer });
 
             ChronicleLogger.Info($"Session started. Server='{_current.ServerName}', player='{localPlayer}'. {explicitReason}");
         }
@@ -122,10 +126,12 @@ namespace ValheimSessionChronicle.Core
                 _events.Add(
                     EventTypes.SessionEnded,
                     EventCategories.Session,
-                    $"Hráč byl odpojen. Důvod: {reason}",
+                    "", // Use localization
                     actor: _current.LocalPlayerName,
                     importance: EventImportance.High,
-                    metadata: new Dictionary<string, string> { ["DisconnectReason"] = disconnectReason.ToString() });
+                    metadata: new Dictionary<string, string> { ["DisconnectReason"] = disconnectReason.ToString() },
+                    eventId: "SessionEnded",
+                    eventArgs: new[] { reason });
 
                 StorageResult result = _storage.Save(_current, _config);
 
@@ -878,12 +884,14 @@ namespace ValheimSessionChronicle.Core
             _events.Add(
                 EventTypes.TombstoneCreated,
                 EventCategories.Player,
-                $"Byl vytvořen náhrobek hráče {playerName}.",
+                "", // Use localization
                 actor: playerName,
                 position: ValheimNames.FormatPosition(player.transform.position),
                 importance: EventImportance.High,
                 duplicateKey: "tombstone:" + playerName,
-                duplicateCooldownSeconds: 20);
+                duplicateCooldownSeconds: 20,
+                eventId: "TombstoneCreated",
+                eventArgs: new[] { playerName });
         }
 
         public void RecordFoodEaten(Player player, string foodName)
@@ -909,12 +917,14 @@ namespace ValheimSessionChronicle.Core
                 _events.Add(
                     "FoodEaten",
                     EventCategories.Player,
-                    $"{playerName} poprvé pojedl: {foodName}.",
+                    "", // Use localization
                     actor: playerName,
                     target: foodName,
                     importance: EventImportance.Low,
                     duplicateKey: "food-event:" + playerName + ":" + foodName,
-                    duplicateCooldownSeconds: 3600);
+                    duplicateCooldownSeconds: 3600,
+                    eventId: "FoodEaten",
+                    eventArgs: new[] { playerName, foodName });
             }
         }
 
@@ -936,13 +946,15 @@ namespace ValheimSessionChronicle.Core
             _events.Add(
                 "AnimalTamed",
                 EventCategories.Player,
-                $"{playerName} úspěšně ochočil zvíře: {animalName}.",
+                "", // Use localization
                 actor: playerName,
                 target: animalName,
                 position: ValheimNames.FormatPosition(animal.transform.position),
                 importance: EventImportance.Medium,
                 duplicateKey: "tame-event:" + animalName,
-                duplicateCooldownSeconds: 60);
+                duplicateCooldownSeconds: 60,
+                eventId: "AnimalTamed",
+                eventArgs: new[] { playerName, animalName });
         }
 
         public void RecordStructureDamaged(object structure, float damage)

@@ -8,6 +8,8 @@ using ValheimSessionChronicle.Discord;
 using ValheimSessionChronicle.Patches;
 using ValheimSessionChronicle.Reporting;
 using ValheimSessionChronicle.Storage;
+using ValheimSessionChronicle.UI;
+using ValheimSessionChronicle.Localization;
 
 namespace ValheimSessionChronicle
 {
@@ -29,6 +31,7 @@ namespace ValheimSessionChronicle
 
         private Harmony _harmony;
         private SessionWatcher _watcher;
+        private ValheimSessionChronicle.UI.ChronicleUIIndicator _uiIndicator;
 
         private void Awake()
         {
@@ -36,6 +39,7 @@ namespace ValheimSessionChronicle
 
             ModConfig = new ChronicleConfig(Config);
             ChronicleLogger.Initialize(Logger, ModConfig);
+            LocalizationManager.Initialize(ModConfig);
 
             SessionManager = new SessionManager(
                 ModConfig,
@@ -45,6 +49,9 @@ namespace ValheimSessionChronicle
 
             _watcher = gameObject.AddComponent<SessionWatcher>();
             _watcher.Initialize(SessionManager, LifecycleManager, ModConfig);
+            _uiIndicator = gameObject.AddComponent<ValheimSessionChronicle.UI.ChronicleUIIndicator>();
+            _uiIndicator.Initialize(ModConfig, LifecycleManager, SessionManager);
+
             DontDestroyOnLoad(gameObject);
 
             _harmony = new Harmony(PluginGuid);

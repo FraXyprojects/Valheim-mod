@@ -216,4 +216,4 @@ The build copies the compiled DLL into:
 
 `package/plugins/ValheimSessionChronicle/`
 
-For release packaging, place the compiled DLL under the same `plugins/ValheimSessionChronicle/` path in the zip together with `manifest.json`, `README.md`, `CHANGELOG.md`, and `icon.png`.
+For release packaging, place the compiled DLL under the same `plugins/ValheimSessionChronicle/` path in the zip together with `manifest.json`, `README.md`, and `icon.png`.

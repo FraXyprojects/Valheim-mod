@@ -36,18 +36,23 @@ Tracked when available client-side:
 
 ## Installation
 
-1. Install BepInEx for Valheim, for example through Thunderstore/r2modman.
-2. Build `ValheimSessionChronicle.sln` in Release mode.
-3. Copy `ValheimSessionChronicle.dll` to:
+**Via Thunderstore/r2modman (Recommended):**
+1. Install the mod through the Thunderstore app or r2modman. All dependencies (BepInEx) will be downloaded automatically.
+2. Start Valheim and join a server.
 
-   `BepInEx/plugins/ValheimSessionChronicle/ValheimSessionChronicle.dll`
-
+**Manual Installation:**
+1. Install BepInEx for Valheim.
+2. Download the release ZIP and extract it.
+3. Place the `ValheimSessionChronicle.dll` into your `BepInEx/plugins/ValheimSessionChronicle/` folder.
 4. Start Valheim and join a server.
-5. Reports are written after disconnect to a world-specific folder:
 
-   `BepInEx/plugins/ValheimSessionChronicle/Reports/<WorldName>/`
+Reports are written after disconnect to a world-specific folder:
 
-## Build Setup
+`BepInEx/plugins/ValheimSessionChronicle/Reports/<WorldName>/`
+
+## Development & Build Setup
+
+If you wish to build the mod from source, note that this is a development requirement only and not needed for regular users.
 
 The project targets `net472`, which is the common target for BepInEx 5 Valheim mods.
 

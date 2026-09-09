@@ -180,6 +180,9 @@ namespace ValheimSessionChronicle.Core
             }
         }
 
+        private static readonly Collider[] _colliderBuffer = new Collider[200];
+        private static readonly HashSet<int> _processedInstances = new HashSet<int>();
+
         private static Dictionary<string, int> ScanNearbyContainers(Player localPlayer)
         {
             const float Radius = 32f;
@@ -187,15 +190,25 @@ namespace ValheimSessionChronicle.Core
 
             Dictionary<string, int> totals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             int scanned = 0;
+            _processedInstances.Clear();
 
-            foreach (Container container in UnityEngine.Object.FindObjectsByType<Container>(FindObjectsSortMode.None))
+            int hits = Physics.OverlapSphereNonAlloc(localPlayer.transform.position, Radius, _colliderBuffer);
+            for (int i = 0; i < hits; i++)
             {
-                if (container == null || scanned >= MaxContainersPerScan)
+                Collider collider = _colliderBuffer[i];
+                if (collider == null || scanned >= MaxContainersPerScan)
                 {
                     break;
                 }
 
-                if ((container.transform.position - localPlayer.transform.position).sqrMagnitude > Radius * Radius)
+                Container container = collider.GetComponentInParent<Container>();
+                if (container == null)
+                {
+                    continue;
+                }
+
+                int instanceId = container.GetInstanceID();
+                if (!_processedInstances.Add(instanceId))
                 {
                     continue;
                 }
@@ -218,14 +231,25 @@ namespace ValheimSessionChronicle.Core
             const int MaxStationsPerScan = 80;
 
             int scanned = 0;
-            foreach (CraftingStation station in UnityEngine.Object.FindObjectsByType<CraftingStation>(FindObjectsSortMode.None))
+            _processedInstances.Clear();
+
+            int hits = Physics.OverlapSphereNonAlloc(localPlayer.transform.position, Radius, _colliderBuffer);
+            for (int i = 0; i < hits; i++)
             {
-                if (station == null || scanned >= MaxStationsPerScan)
+                Collider collider = _colliderBuffer[i];
+                if (collider == null || scanned >= MaxStationsPerScan)
                 {
                     break;
                 }
 
-                if ((station.transform.position - localPlayer.transform.position).sqrMagnitude > Radius * Radius)
+                CraftingStation station = collider.GetComponentInParent<CraftingStation>();
+                if (station == null)
+                {
+                    continue;
+                }
+
+                int instanceId = station.GetInstanceID();
+                if (!_processedInstances.Add(instanceId))
                 {
                     continue;
                 }

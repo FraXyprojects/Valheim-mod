@@ -19,6 +19,16 @@ namespace ValheimSessionChronicle.Discord
                 return;
             }
 
+            // Security: Validate the webhook URL to prevent SSRF
+            if (!Uri.TryCreate(webhookUrl, UriKind.Absolute, out Uri uri) ||
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !(uri.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase)))
+            {
+                ChronicleLogger.Warning("Invalid Discord webhook URL. URL must use HTTPS and point to discord.com or discordapp.com.");
+                return;
+            }
+
             Task.Run(() => Send(webhookUrl, reportText));
         }
 

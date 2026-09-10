@@ -81,13 +81,23 @@ namespace ValheimSessionChronicle.WorldMemory
 
         public string SanitizeFileName(string value)
         {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "UnknownWorld";
+            }
+
+            // Prevent path traversal on all operating systems
+            value = value.Replace("..", "__");
+            value = value.Replace('/', '_');
+            value = value.Replace('\\', '_');
+
             foreach (char invalid in Path.GetInvalidFileNameChars())
             {
                 value = value.Replace(invalid, '_');
             }
 
             value = value.Replace(' ', '_').Trim('_');
-            return string.IsNullOrWhiteSpace(value) ? "UnknownWorld" : value;
+            return string.IsNullOrWhiteSpace(value) || value == "." ? "UnknownWorld" : value;
         }
 
         private void EnsureIdentity(WorldMemoryData data, SessionData session)

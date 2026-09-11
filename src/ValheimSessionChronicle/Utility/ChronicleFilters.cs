@@ -74,6 +74,15 @@ namespace ValheimSessionChronicle.Utility
             "wraith"
         };
 
+        private static readonly string[] NormalizedCampPieces;
+        private static readonly string[] NormalizedDangerousEnemies;
+
+        static ChronicleFilters()
+        {
+            NormalizedCampPieces = CampPieces.Select(NormalizeKey).ToArray();
+            NormalizedDangerousEnemies = DangerousEnemies.Select(NormalizeKey).ToArray();
+        }
+
         public static bool IsValidBiome(string biome)
         {
             return !InvalidBiomes.Contains(Normalize(biome));
@@ -92,7 +101,7 @@ namespace ValheimSessionChronicle.Utility
         public static bool IsCampPiece(string pieceName)
         {
             string normalized = NormalizeKey(pieceName);
-            return CampPieces.Any(piece => normalized.Contains(Normalize(piece)));
+            return NormalizedCampPieces.Any(piece => normalized.Contains(piece));
         }
 
         public static bool IsFirePiece(string pieceName)
@@ -154,7 +163,7 @@ namespace ValheimSessionChronicle.Utility
         public static bool IsDangerousEnemy(string enemyName)
         {
             string normalized = NormalizeKey(enemyName);
-            return DangerousEnemies.Any(enemy => normalized.Contains(Normalize(enemy)));
+            return NormalizedDangerousEnemies.Any(enemy => normalized.Contains(enemy));
         }
 
         public static bool ShouldAppearInChronicle(SessionEvent entry)
@@ -198,7 +207,7 @@ namespace ValheimSessionChronicle.Utility
             string readableBiome = IsValidBiome(biome) ? biome : "neznámé oblasti";
 
             // Camps and workstations are reported only as milestones, not as every placement action.
-            if (firstCampInBiome && CampPieces.Any(piece => normalized.Contains(Normalize(piece))))
+            if (firstCampInBiome && NormalizedCampPieces.Any(piece => normalized.Contains(piece)))
             {
                 description = $"V biomu {readableBiome} vznikl malý tábor pro další výpravu.";
                 importance = EventImportance.High;

@@ -81,6 +81,12 @@ namespace ValheimSessionChronicle.WorldMemory
 
         public string SanitizeFileName(string value)
         {
+            if (string.IsNullOrWhiteSpace(value)) return "UnknownWorld";
+
+            // Security: Path.GetInvalidFileNameChars is OS-dependent.
+            // Explicitly strip slashes and dots to prevent path traversal on all OS.
+            value = value.Replace('/', '_').Replace('\\', '_').Replace('.', '_');
+
             foreach (char invalid in Path.GetInvalidFileNameChars())
             {
                 value = value.Replace(invalid, '_');

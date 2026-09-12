@@ -4,3 +4,6 @@
 ## 2024-05-19 - Garbage Collection pressure from OverlapSphere and HashSet
 **Learning:** While `Physics.OverlapSphere` is much faster than `FindObjectsByType`, allocating new arrays and `HashSet` objects every scan creates Garbage Collection (GC) pressure which can cause stuttering.
 **Action:** Use `Physics.OverlapSphereNonAlloc` with a pre-allocated array, and reuse a single cached `HashSet<int>` across scans by clearing it before use.
+## 2024-05-19 - Reflection overhead in tight loops
+**Learning:** `GetField`, `GetProperty`, and looping through `GetMethods` are heavy Reflection operations. Doing this repeatedly per-frame in `Update` loops (e.g. tracking Valheim character health via `SafeInvoke`) burns significant CPU cycles unnecessarily.
+**Action:** Always implement a static `Dictionary` cache (keyed by `Type.FullName` + MemberName + Arguments) to store and reuse `FieldInfo`, `PropertyInfo`, and `MethodInfo` to turn heavy Reflection into O(1) lookups.

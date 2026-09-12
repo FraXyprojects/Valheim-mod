@@ -7,3 +7,6 @@
 ## 2024-05-19 - Reflection overhead in tight loops
 **Learning:** `GetField`, `GetProperty`, and looping through `GetMethods` are heavy Reflection operations. Doing this repeatedly per-frame in `Update` loops (e.g. tracking Valheim character health via `SafeInvoke`) burns significant CPU cycles unnecessarily.
 **Action:** Always implement a static `Dictionary` cache (keyed by `Type.FullName` + MemberName + Arguments) to store and reuse `FieldInfo`, `PropertyInfo`, and `MethodInfo` to turn heavy Reflection into O(1) lookups.
+## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
+**Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
+**Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.

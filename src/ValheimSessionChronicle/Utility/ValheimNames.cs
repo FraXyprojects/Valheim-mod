@@ -27,6 +27,22 @@ namespace ValheimSessionChronicle.Utility
             "Eitr refinery", "Blast furnace", "Spinning wheel", "Windmill", "Cauldron"
         };
 
+        private static readonly string[] ProgressionItemTokens =
+        {
+            "finewood", "corewood", "bronze", "bronz", "copper", "tin", "iron", "zelezo",
+            "silver", "stribro", "wolf", "blackmetal", "cernykov", "flametal", "ashwood",
+            "yggdrasil", "sap", "blackcore", "eitr", "carapace", "softtissue", "asksvin",
+            "morgen", "barley", "flax", "lox", "ancientseed", "surtlingcore", "cryptkey",
+            "swampkey", "dragonegg", "queenbee", "honey"
+        };
+
+        private static readonly string[] NormalizedImportantItems;
+
+        static ValheimNames()
+        {
+            NormalizedImportantItems = ImportantItems.Select(ChronicleFilters.NormalizeKey).ToArray();
+        }
+
         private static readonly Dictionary<string, string> BossNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Eikthyr"] = "Eikthyr",
@@ -625,11 +641,7 @@ namespace ValheimSessionChronicle.Utility
                 ? normalized.Substring(4)
                 : normalized;
 
-            return ImportantItems.Any(value =>
-            {
-                string important = ChronicleFilters.NormalizeKey(value);
-                return normalized.Contains(important) || bareItemName.Contains(important);
-            });
+            return NormalizedImportantItems.Any(important => normalized.Contains(important) || bareItemName.Contains(important));
         }
 
         public static bool IsImportantCraftingMilestone(string itemName)
@@ -650,16 +662,7 @@ namespace ValheimSessionChronicle.Utility
             }
 
             string normalized = ChronicleFilters.NormalizeKey(itemName);
-            string[] tokens =
-            {
-                "finewood", "corewood", "bronze", "bronz", "copper", "tin", "iron", "zelezo",
-                "silver", "stribro", "wolf", "blackmetal", "cernykov", "flametal", "ashwood",
-                "yggdrasil", "sap", "blackcore", "eitr", "carapace", "softtissue", "asksvin",
-                "morgen", "barley", "flax", "lox", "ancientseed", "surtlingcore", "cryptkey",
-                "swampkey", "dragonegg", "queenbee", "honey"
-            };
-
-            return tokens.Any(token => normalized.Contains(token));
+            return ProgressionItemTokens.Any(token => normalized.Contains(token));
         }
 
         private static string GetItemDropName(object possibleItem)

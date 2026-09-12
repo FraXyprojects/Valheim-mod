@@ -36,11 +36,19 @@ namespace ValheimSessionChronicle.Discord
         {
             try
             {
-                string content = reportText.Length > DiscordMessageLimit
-                    ? reportText.Substring(0, DiscordMessageLimit) + "\n\n[Report zkracen kvuli limitu Discord zpravy.]"
-                    : reportText;
+                // Security: Prevent Markdown injection that could break out of the code block and trigger mentions
+                string safeText = reportText.Replace("`", "'");
 
-                string payload = JsonConvert.SerializeObject(new { content = "```text\n" + content + "\n```" });
+                string content = safeText.Length > DiscordMessageLimit
+                    ? safeText.Substring(0, DiscordMessageLimit) + "\n\n[Report zkracen kvuli limitu Discord zpravy.]"
+                    : safeText;
+
+                // Security: Explicitly disable all mentions (everyone, here, user, role)
+                string payload = JsonConvert.SerializeObject(new
+                {
+                    content = "```text\n" + content + "\n```",
+                    allowed_mentions = new { parse = new string[0] }
+                });
                 byte[] data = Encoding.UTF8.GetBytes(payload);
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(webhookUrl);

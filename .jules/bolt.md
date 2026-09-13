@@ -10,3 +10,6 @@
 ## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
 **Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
 **Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.
+## 2024-05-19 - O(N^2) Recalculation on Array Growth
+**Learning:** Found a performance bottleneck where an aggregate calculation (like finding a dominant value using `GroupBy` or calculating averages using `Average`) was being performed on every iteration of a loop that was incrementally building a list. This turns an O(N) operation into an O(N^2) operation, causing severe CPU spikes during intensive generation steps.
+**Action:** Move expensive aggregate operations to the end of the loop, so they only run once per cluster. For continuous center-point updates, replace O(N) recalculations with O(1) incremental math (`average += (newValue - average) / count`).

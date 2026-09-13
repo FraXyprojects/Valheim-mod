@@ -23,11 +23,26 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 }
 
                 cluster.Samples.Add(sample);
-                RecalculateCenter(cluster);
+
+                // ⚡ Bolt: Incrementally update the center to avoid O(N^2) recalculation on every sample
+                int count = cluster.Samples.Count;
+                if (count > 1)
+                {
+                    cluster.CenterX += (sample.X - cluster.CenterX) / count;
+                    cluster.CenterZ += (sample.Z - cluster.CenterZ) / count;
+                }
             }
 
             foreach (CampCluster cluster in clusters)
             {
+                // ⚡ Bolt: Calculate the dominant biome once at the end instead of on every sample addition
+                cluster.Biome = cluster.Samples
+                    .Where(s => ChronicleFilters.IsValidBiome(s.Biome))
+                    .GroupBy(s => s.Biome, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(group => group.Count())
+                    .Select(group => group.Key)
+                    .FirstOrDefault() ?? cluster.Biome;
+
                 ClassifyCluster(cluster);
             }
 
@@ -46,18 +61,6 @@ namespace ValheimSessionChronicle.Reporting.Analysis
                 float dz = cluster.CenterZ - sample.Z;
                 return dx * dx + dz * dz <= ClusterRadius * ClusterRadius;
             });
-        }
-
-        private static void RecalculateCenter(CampCluster cluster)
-        {
-            cluster.CenterX = cluster.Samples.Average(sample => sample.X);
-            cluster.CenterZ = cluster.Samples.Average(sample => sample.Z);
-            cluster.Biome = cluster.Samples
-                .Where(sample => ChronicleFilters.IsValidBiome(sample.Biome))
-                .GroupBy(sample => sample.Biome, StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(group => group.Count())
-                .Select(group => group.Key)
-                .FirstOrDefault() ?? cluster.Biome;
         }
 
         private static void ClassifyCluster(CampCluster cluster)

@@ -10,3 +10,6 @@
 ## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
 **Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
 **Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.
+## 2024-05-19 - String allocation in Dictionary keys inside tight loops
+**Learning:** String concatenation (e.g., `type.FullName + "." + memberName`) for creating Dictionary keys in hot paths, like Reflection caching inside Update loops, creates excessive temporary object allocations resulting in Garbage Collection pressure and possible stuttering.
+**Action:** Replace string-based dictionary keys with small custom `struct` values that implement `IEquatable<T>` and override `GetHashCode()`. This completely removes string allocation on the heap for cached lookup paths while preserving O(1) Dictionary performance.

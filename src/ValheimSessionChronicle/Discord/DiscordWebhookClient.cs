@@ -23,9 +23,10 @@ namespace ValheimSessionChronicle.Discord
             if (!Uri.TryCreate(webhookUrl, UriKind.Absolute, out Uri uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
                 !(uri.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase) ||
-                  uri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase)))
+                  uri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase)) ||
+                !uri.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.OrdinalIgnoreCase))
             {
-                ChronicleLogger.Warning("Invalid Discord webhook URL. URL must use HTTPS and point to discord.com or discordapp.com.");
+                ChronicleLogger.Warning("Invalid Discord webhook URL. URL must use HTTPS, point to discord.com or discordapp.com, and be a valid /api/webhooks/ path.");
                 return;
             }
 
@@ -55,6 +56,7 @@ namespace ValheimSessionChronicle.Discord
                 request.Method = "POST";
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;
+                request.Timeout = 10000; // Security: Fail fast to prevent resource exhaustion
 
                 using (Stream stream = request.GetRequestStream())
                 {

@@ -56,6 +56,10 @@ namespace ValheimSessionChronicle.Discord
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;
 
+                // Security: Prevent hanging threads and SSRF via open redirects
+                request.Timeout = 10000;
+                request.AllowAutoRedirect = false;
+
                 using (Stream stream = request.GetRequestStream())
                 {
                     stream.Write(data, 0, data.Length);

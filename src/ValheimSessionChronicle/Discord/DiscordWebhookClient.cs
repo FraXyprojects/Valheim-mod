@@ -22,10 +22,11 @@ namespace ValheimSessionChronicle.Discord
             // Security: Validate the webhook URL to prevent SSRF
             if (!Uri.TryCreate(webhookUrl, UriKind.Absolute, out Uri uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
+                uri.Port != 443 ||
                 !(uri.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase) ||
                   uri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase)))
             {
-                ChronicleLogger.Warning("Invalid Discord webhook URL. URL must use HTTPS and point to discord.com or discordapp.com.");
+                ChronicleLogger.Warning("Invalid Discord webhook URL. URL must use HTTPS on port 443 and point to discord.com or discordapp.com.");
                 return;
             }
 
@@ -55,6 +56,8 @@ namespace ValheimSessionChronicle.Discord
                 request.Method = "POST";
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;
+                request.Timeout = 10000;
+                request.AllowAutoRedirect = false;
 
                 using (Stream stream = request.GetRequestStream())
                 {

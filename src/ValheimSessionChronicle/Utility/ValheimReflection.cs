@@ -4,14 +4,54 @@ using System.Reflection;
 
 namespace ValheimSessionChronicle.Utility
 {
+    // ⚡ Bolt: Using a struct key prevents string allocations and boxing,
+    // heavily reducing GC pressure in frequent Update loops.
+    internal struct MemberKey : IEquatable<MemberKey>
+    {
+        public readonly Type TargetType;
+        public readonly string MemberName;
+        public readonly int ArgCount;
+
+        public MemberKey(Type targetType, string memberName, int argCount = 0)
+        {
+            TargetType = targetType;
+            MemberName = memberName;
+            ArgCount = argCount;
+        }
+
+        public bool Equals(MemberKey other)
+        {
+            return TargetType == other.TargetType &&
+                   MemberName == other.MemberName &&
+                   ArgCount == other.ArgCount;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is MemberKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 23 + (TargetType != null ? TargetType.GetHashCode() : 0);
+                hash = hash * 23 + (MemberName != null ? MemberName.GetHashCode() : 0);
+                hash = hash * 23 + ArgCount;
+                return hash;
+            }
+        }
+    }
+
     internal static class ValheimReflection
     {
         private const BindingFlags AnyInstance =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static readonly Dictionary<string, FieldInfo> _fieldCache = new Dictionary<string, FieldInfo>();
-        private static readonly Dictionary<string, PropertyInfo> _propertyCache = new Dictionary<string, PropertyInfo>();
-        private static readonly Dictionary<string, MethodInfo> _methodCache = new Dictionary<string, MethodInfo>();
+        private static readonly Dictionary<MemberKey, FieldInfo> _fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> _propertyCache = new Dictionary<MemberKey, PropertyInfo>();
+        private static readonly Dictionary<MemberKey, MethodInfo> _methodCache = new Dictionary<MemberKey, MethodInfo>();
 
         // ⚡ Bolt: Caching reflection lookups significantly reduces CPU overhead,
         // especially during frequent Update loop evaluations in SessionWatcher.
@@ -25,7 +65,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
 
-            string key = type.FullName + "." + memberName;
+            MemberKey key = new MemberKey(type, memberName, 0);
 
             if (_fieldCache.TryGetValue(key, out FieldInfo cachedField))
             {
@@ -85,7 +125,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
             int argCount = args == null ? 0 : args.Length;
-            string key = type.FullName + "." + methodName + "." + argCount;
+            MemberKey key = new MemberKey(type, methodName, argCount);
 
             if (_methodCache.TryGetValue(key, out MethodInfo cachedMethod))
             {

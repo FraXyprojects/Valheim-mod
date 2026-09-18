@@ -56,6 +56,10 @@ namespace ValheimSessionChronicle.Discord
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;
 
+                // Security: Configure strict timeouts to prevent thread starvation/DoS if endpoint hangs
+                request.Timeout = 5000;
+                request.ReadWriteTimeout = 10000;
+
                 using (Stream stream = request.GetRequestStream())
                 {
                     stream.Write(data, 0, data.Length);

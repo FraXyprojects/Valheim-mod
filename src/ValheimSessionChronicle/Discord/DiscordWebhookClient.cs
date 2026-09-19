@@ -55,6 +55,8 @@ namespace ValheimSessionChronicle.Discord
                 request.Method = "POST";
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;
+                request.Timeout = 10000;
+                request.ReadWriteTimeout = 10000;
 
                 using (Stream stream = request.GetRequestStream())
                 {

@@ -9,12 +9,49 @@ namespace ValheimSessionChronicle.Utility
         private const BindingFlags AnyInstance =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static readonly Dictionary<string, FieldInfo> _fieldCache = new Dictionary<string, FieldInfo>();
-        private static readonly Dictionary<string, PropertyInfo> _propertyCache = new Dictionary<string, PropertyInfo>();
-        private static readonly Dictionary<string, MethodInfo> _methodCache = new Dictionary<string, MethodInfo>();
+        private struct MemberKey : IEquatable<MemberKey>
+        {
+            public readonly Type Type;
+            public readonly string MemberName;
+            public readonly int ArgCount;
+
+            public MemberKey(Type type, string memberName, int argCount = 0)
+            {
+                Type = type;
+                MemberName = memberName;
+                ArgCount = argCount;
+            }
+
+            public bool Equals(MemberKey other)
+            {
+                return Type == other.Type && string.Equals(MemberName, other.MemberName) && ArgCount == other.ArgCount;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is MemberKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + (Type != null ? Type.GetHashCode() : 0);
+                    hash = hash * 31 + (MemberName != null ? MemberName.GetHashCode() : 0);
+                    hash = hash * 31 + ArgCount;
+                    return hash;
+                }
+            }
+        }
+
+        private static readonly Dictionary<MemberKey, FieldInfo> _fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> _propertyCache = new Dictionary<MemberKey, PropertyInfo>();
+        private static readonly Dictionary<MemberKey, MethodInfo> _methodCache = new Dictionary<MemberKey, MethodInfo>();
 
         // ⚡ Bolt: Caching reflection lookups significantly reduces CPU overhead,
         // especially during frequent Update loop evaluations in SessionWatcher.
+        // Replaced string concatenation keys with a struct MemberKey to eliminate Garbage Collection pressure.
         public static object GetMemberValue(object target, string memberName)
         {
             if (target == null || string.IsNullOrWhiteSpace(memberName))
@@ -25,7 +62,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
 
-            string key = type.FullName + "." + memberName;
+            MemberKey key = new MemberKey(type, memberName);
 
             if (_fieldCache.TryGetValue(key, out FieldInfo cachedField))
             {
@@ -85,7 +122,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
             int argCount = args == null ? 0 : args.Length;
-            string key = type.FullName + "." + methodName + "." + argCount;
+            MemberKey key = new MemberKey(type, methodName, argCount);
 
             if (_methodCache.TryGetValue(key, out MethodInfo cachedMethod))
             {

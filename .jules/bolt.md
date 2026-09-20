@@ -10,3 +10,6 @@
 ## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
 **Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
 **Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.
+## 2024-05-20 - Expensive string normalization and allocations in core event loop
+**Learning:** Functions like `NormalizeKey` perform string manipulations (ToLowerInvariant, Normalize, CharUnicodeInfo lookups, StringBuilder appends) that create significant allocations and CPU overhead when called frequently on the same inputs during Update loops or event evaluations (e.g. tracking progression or scanning biomes).
+**Action:** Use a `ConcurrentDictionary<string, string>` (or standard dictionary for single-threaded Unity calls) to memoize results of heavy string normalizations so they are only calculated once per unique input.

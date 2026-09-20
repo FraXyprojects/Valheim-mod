@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Collections.Concurrent;
 using System.Text;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
@@ -259,6 +260,10 @@ namespace ValheimSessionChronicle.Utility
             return false;
         }
 
+        // ⚡ Bolt: Cache normalized strings to prevent heavy allocations and redundant calculation
+        // in frequently accessed Update/event loops.
+        private static readonly ConcurrentDictionary<string, string> _normalizedKeyCache = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+
         public static string NormalizeKey(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -266,6 +271,11 @@ namespace ValheimSessionChronicle.Utility
                 return string.Empty;
             }
 
+            return _normalizedKeyCache.GetOrAdd(value, NormalizeKeyInternal);
+        }
+
+        private static string NormalizeKeyInternal(string value)
+        {
             string formD = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
             StringBuilder builder = new StringBuilder(formD.Length);
             foreach (char c in formD)

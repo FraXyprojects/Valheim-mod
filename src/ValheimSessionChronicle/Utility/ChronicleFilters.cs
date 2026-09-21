@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -259,6 +260,9 @@ namespace ValheimSessionChronicle.Utility
             return false;
         }
 
+        // Optimization: Memoize NormalizeKey results to reduce GC pressure and CPU overhead in frequent event loops.
+        private static readonly ConcurrentDictionary<string, string> _normalizeCache = new ConcurrentDictionary<string, string>();
+
         public static string NormalizeKey(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -266,18 +270,21 @@ namespace ValheimSessionChronicle.Utility
                 return string.Empty;
             }
 
-            string formD = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
-            StringBuilder builder = new StringBuilder(formD.Length);
-            foreach (char c in formD)
+            return _normalizeCache.GetOrAdd(value, key =>
             {
-                UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
-                if (category != UnicodeCategory.NonSpacingMark && !char.IsWhiteSpace(c) && c != '_' && c != '-')
+                string formD = key.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+                StringBuilder builder = new StringBuilder(formD.Length);
+                foreach (char c in formD)
                 {
-                    builder.Append(c);
+                    UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
+                    if (category != UnicodeCategory.NonSpacingMark && !char.IsWhiteSpace(c) && c != '_' && c != '-')
+                    {
+                        builder.Append(c);
+                    }
                 }
-            }
 
-            return builder.ToString().Normalize(NormalizationForm.FormC);
+                return builder.ToString().Normalize(NormalizationForm.FormC);
+            });
         }
 
         private static string Normalize(string value)

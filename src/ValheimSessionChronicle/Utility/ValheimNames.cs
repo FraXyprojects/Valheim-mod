@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Collections.Concurrent;
 using System.Reflection;
 using UnityEngine;
 using ValheimSessionChronicle.Core;
@@ -751,6 +752,9 @@ namespace ValheimSessionChronicle.Utility
             return biome.Replace("BlackForest", "Black Forest");
         }
 
+        // Optimization: Memoize Clean results to reduce GC pressure and CPU overhead in frequent event loops.
+        private static readonly ConcurrentDictionary<string, string> _cleanCache = new ConcurrentDictionary<string, string>();
+
         private static string Clean(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -758,11 +762,12 @@ namespace ValheimSessionChronicle.Utility
                 return string.Empty;
             }
 
-            return value
-                .Replace("(Clone)", string.Empty)
-                .Replace("$", string.Empty)
-                .Replace("_", " ")
-                .Trim();
+            return _cleanCache.GetOrAdd(value, key =>
+                key.Replace("(Clone)", string.Empty)
+                   .Replace("$", string.Empty)
+                   .Replace("_", " ")
+                   .Trim()
+            );
         }
 
         private static string CleanDamageTypeName(string value)

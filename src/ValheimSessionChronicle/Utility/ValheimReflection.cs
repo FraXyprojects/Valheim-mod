@@ -9,9 +9,78 @@ namespace ValheimSessionChronicle.Utility
         private const BindingFlags AnyInstance =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static readonly Dictionary<string, FieldInfo> _fieldCache = new Dictionary<string, FieldInfo>();
-        private static readonly Dictionary<string, PropertyInfo> _propertyCache = new Dictionary<string, PropertyInfo>();
-        private static readonly Dictionary<string, MethodInfo> _methodCache = new Dictionary<string, MethodInfo>();
+        private struct MemberKey : IEquatable<MemberKey>
+        {
+            public Type TargetType;
+            public string MemberName;
+
+            public MemberKey(Type targetType, string memberName)
+            {
+                TargetType = targetType;
+                MemberName = memberName;
+            }
+
+            public bool Equals(MemberKey other)
+            {
+                return TargetType == other.TargetType && string.Equals(MemberName, other.MemberName, StringComparison.Ordinal);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is MemberKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + (TargetType != null ? TargetType.GetHashCode() : 0);
+                    hash = hash * 31 + (MemberName != null ? StringComparer.Ordinal.GetHashCode(MemberName) : 0);
+                    return hash;
+                }
+            }
+        }
+
+        private struct MethodKey : IEquatable<MethodKey>
+        {
+            public Type TargetType;
+            public string MethodName;
+            public int ArgCount;
+
+            public MethodKey(Type targetType, string methodName, int argCount)
+            {
+                TargetType = targetType;
+                MethodName = methodName;
+                ArgCount = argCount;
+            }
+
+            public bool Equals(MethodKey other)
+            {
+                return TargetType == other.TargetType && ArgCount == other.ArgCount && string.Equals(MethodName, other.MethodName, StringComparison.Ordinal);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is MethodKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + (TargetType != null ? TargetType.GetHashCode() : 0);
+                    hash = hash * 31 + (MethodName != null ? StringComparer.Ordinal.GetHashCode(MethodName) : 0);
+                    hash = hash * 31 + ArgCount.GetHashCode();
+                    return hash;
+                }
+            }
+        }
+
+        private static readonly Dictionary<MemberKey, FieldInfo> _fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> _propertyCache = new Dictionary<MemberKey, PropertyInfo>();
+        private static readonly Dictionary<MethodKey, MethodInfo> _methodCache = new Dictionary<MethodKey, MethodInfo>();
 
         // ⚡ Bolt: Caching reflection lookups significantly reduces CPU overhead,
         // especially during frequent Update loop evaluations in SessionWatcher.
@@ -25,7 +94,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
 
-            string key = type.FullName + "." + memberName;
+            MemberKey key = new MemberKey(type, memberName);
 
             if (_fieldCache.TryGetValue(key, out FieldInfo cachedField))
             {
@@ -85,7 +154,8 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
             int argCount = args == null ? 0 : args.Length;
-            string key = type.FullName + "." + methodName + "." + argCount;
+
+            MethodKey key = new MethodKey(type, methodName, argCount);
 
             if (_methodCache.TryGetValue(key, out MethodInfo cachedMethod))
             {

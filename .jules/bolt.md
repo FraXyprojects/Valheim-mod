@@ -10,3 +10,6 @@
 ## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
 **Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
 **Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.
+## 2024-05-19 - ConcurrentDictionary Count locking
+**Learning:** Checking the `.Count` property on a `ConcurrentDictionary` requires acquiring locks on all internal buckets, causing massive thread contention in highly concurrent environments and defeating the purpose of the optimization.
+**Action:** Use `Interlocked` operations to maintain a separate thread-safe counter for cache size heuristics instead of relying on `ConcurrentDictionary.Count`.

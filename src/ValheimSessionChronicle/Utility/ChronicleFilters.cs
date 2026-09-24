@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -6,10 +7,15 @@ using System.Text;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
 
+using System.Threading;
+
 namespace ValheimSessionChronicle.Utility
 {
     internal static class ChronicleFilters
     {
+        private static readonly ConcurrentDictionary<string, string> _normalizationCache = new ConcurrentDictionary<string, string>();
+        private static int _cacheCount = 0;
+
         // Central rules for deciding what belongs in the human chronicle.
         // Low-value telemetry can still feed statistics, but it should not become prose noise.
         private static readonly HashSet<string> InvalidBiomes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -266,6 +272,11 @@ namespace ValheimSessionChronicle.Utility
                 return string.Empty;
             }
 
+            if (_normalizationCache.TryGetValue(value, out string cached))
+            {
+                return cached;
+            }
+
             string formD = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
             StringBuilder builder = new StringBuilder(formD.Length);
             foreach (char c in formD)
@@ -277,7 +288,18 @@ namespace ValheimSessionChronicle.Utility
                 }
             }
 
-            return builder.ToString().Normalize(NormalizationForm.FormC);
+            string result = builder.ToString().Normalize(NormalizationForm.FormC);
+
+            // Fast cache size check using Interlocked instead of ConcurrentDictionary.Count
+            // which locks all buckets and degrades performance.
+            if (Interlocked.Increment(ref _cacheCount) > 1000)
+            {
+                _normalizationCache.Clear();
+                Interlocked.Exchange(ref _cacheCount, 0);
+            }
+
+            _normalizationCache[value] = result;
+            return result;
         }
 
         private static string Normalize(string value)

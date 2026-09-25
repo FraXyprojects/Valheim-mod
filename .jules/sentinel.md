@@ -7,3 +7,8 @@
 **Vulnerability:** User-provided inputs (`WorldName`, `ServerName`) were sanitized using `Path.GetInvalidFileNameChars()` to create directory paths. This allows path traversal since `\` is not considered invalid on Linux systems, allowing a user to inject traversals when interpreted by a Windows client or server. Furthermore, valid but dangerous directory components like `.` and `..` were not stripped.
 **Learning:** `Path.GetInvalidFileNameChars()` does not provide identical security boundaries across all OS platforms (specifically regarding backslashes on POSIX systems) and it inherently allows dots (`.`). When sanitizing user input intended for path creation, explicit stripping of slashes (`/`, `\`) and dots (`.`) is required to ensure consistent cross-platform security.
 **Prevention:** Always explicitly replace or strip directory navigation characters (`/`, `\`, `.`) from user input when constructing file paths, even before applying system-specific invalid character arrays.
+
+## 2025-02-18 - Thread Starvation DoS via Missing Web Request Timeouts
+**Vulnerability:** External HTTP requests (such as sending webhooks to Discord) via `HttpWebRequest` did not configure explicit timeouts.
+**Learning:** By default, `HttpWebRequest` can block threads indefinitely (or for very long periods, like 100 seconds) if the remote endpoint hangs or is unresponsive, leading to thread pool starvation and a Denial of Service (DoS).
+**Prevention:** Always explicitly configure `Timeout` and `ReadWriteTimeout` when making external network requests to prevent unbounded blocking.

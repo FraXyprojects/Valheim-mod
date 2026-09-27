@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using ValheimSessionChronicle.Core;
 using ValheimSessionChronicle.Models;
 
@@ -259,11 +261,20 @@ namespace ValheimSessionChronicle.Utility
             return false;
         }
 
+        private static ConcurrentDictionary<string, string> _normalizeCache = new ConcurrentDictionary<string, string>();
+        private const int MaxCacheSize = 5000;
+
         public static string NormalizeKey(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
                 return string.Empty;
+            }
+
+            // ⚡ Bolt: Cache normalized keys to reduce GC pressure and CPU overhead from string manipulation
+            if (_normalizeCache.TryGetValue(value, out string cachedResult))
+            {
+                return cachedResult;
             }
 
             string formD = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
@@ -277,7 +288,17 @@ namespace ValheimSessionChronicle.Utility
                 }
             }
 
-            return builder.ToString().Normalize(NormalizationForm.FormC);
+            string result = builder.ToString().Normalize(NormalizationForm.FormC);
+
+            if (_normalizeCache.Count >= MaxCacheSize)
+            {
+                // ⚡ Bolt: Safely cap the cache size using Interlocked.Exchange instead of .Clear() to avoid locking all buckets under high concurrency
+                Interlocked.Exchange(ref _normalizeCache, new ConcurrentDictionary<string, string>());
+            }
+
+            _normalizeCache[value] = result;
+
+            return result;
         }
 
         private static string Normalize(string value)

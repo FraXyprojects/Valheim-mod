@@ -10,3 +10,6 @@
 ## 2024-05-19 - Repetitive String Allocation and Normalization in Event Processing
 **Learning:** Found that string normalizations and `.Any()` lookups involving arrays in `Utility/ChronicleFilters.cs` and `Utility/ValheimNames.cs` were dynamically calculating results and allocating arrays (like the tokens array) repeatedly during frequent event checks (like checking progression contexts and milestones).
 **Action:** Lift array definitions into static readonly fields. Lift calculation loops (like `.Select(NormalizeKey).ToArray()`) into static constructors for pre-computation, minimizing GC pressure and redundant CPU cycles in frequent operations.
+## 2026-09-27 - Caching String Normalizations
+**Learning:** Under high concurrency, heavy string manipulations like normalizations (FormD -> Remove marks -> FormC) in C# create significant CPU overhead and GC pressure. When capping the size of a `ConcurrentDictionary` acting as a cache, avoid calling `.Clear()` because it locks all internal buckets, stalling other threads.
+**Action:** Use a bounded `ConcurrentDictionary<string, string>` to memoize repetitive string manipulations. To cap its size without locking buckets, use `Interlocked.Exchange(ref _cache, new ConcurrentDictionary<string, string>())` to safely swap in a new empty dictionary reference.

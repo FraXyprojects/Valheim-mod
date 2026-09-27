@@ -52,6 +52,9 @@ namespace ValheimSessionChronicle.Discord
                 byte[] data = Encoding.UTF8.GetBytes(payload);
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(webhookUrl);
+                // Security: Configure timeouts to prevent thread starvation and DoS vulnerabilities if the remote endpoint hangs
+                request.Timeout = 10000;
+                request.ReadWriteTimeout = 10000;
                 request.Method = "POST";
                 request.ContentType = "application/json";
                 request.ContentLength = data.Length;

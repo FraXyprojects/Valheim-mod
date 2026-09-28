@@ -9,9 +9,74 @@ namespace ValheimSessionChronicle.Utility
         private const BindingFlags AnyInstance =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static readonly Dictionary<string, FieldInfo> _fieldCache = new Dictionary<string, FieldInfo>();
-        private static readonly Dictionary<string, PropertyInfo> _propertyCache = new Dictionary<string, PropertyInfo>();
-        private static readonly Dictionary<string, MethodInfo> _methodCache = new Dictionary<string, MethodInfo>();
+        private struct MemberKey : IEquatable<MemberKey>
+        {
+            public readonly Type TargetType;
+            public readonly string MemberName;
+
+            public MemberKey(Type type, string name)
+            {
+                TargetType = type;
+                MemberName = name;
+            }
+
+            public bool Equals(MemberKey other)
+            {
+                return TargetType == other.TargetType && MemberName == other.MemberName;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is MemberKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return ((TargetType != null ? TargetType.GetHashCode() : 0) * 397) ^ (MemberName != null ? MemberName.GetHashCode() : 0);
+                }
+            }
+        }
+
+        private struct MethodKey : IEquatable<MethodKey>
+        {
+            public readonly Type TargetType;
+            public readonly string MethodName;
+            public readonly int ArgumentCount;
+
+            public MethodKey(Type type, string name, int argCount)
+            {
+                TargetType = type;
+                MethodName = name;
+                ArgumentCount = argCount;
+            }
+
+            public bool Equals(MethodKey other)
+            {
+                return TargetType == other.TargetType && MethodName == other.MethodName && ArgumentCount == other.ArgumentCount;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is MethodKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hashCode = (TargetType != null ? TargetType.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ (MethodName != null ? MethodName.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ ArgumentCount;
+                    return hashCode;
+                }
+            }
+        }
+
+        private static readonly Dictionary<MemberKey, FieldInfo> _fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> _propertyCache = new Dictionary<MemberKey, PropertyInfo>();
+        private static readonly Dictionary<MethodKey, MethodInfo> _methodCache = new Dictionary<MethodKey, MethodInfo>();
 
         // ⚡ Bolt: Caching reflection lookups significantly reduces CPU overhead,
         // especially during frequent Update loop evaluations in SessionWatcher.
@@ -25,7 +90,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
 
-            string key = type.FullName + "." + memberName;
+            var key = new MemberKey(type, memberName);
 
             if (_fieldCache.TryGetValue(key, out FieldInfo cachedField))
             {
@@ -85,7 +150,7 @@ namespace ValheimSessionChronicle.Utility
             Type type = target as Type ?? target.GetType();
             object instance = target is Type ? null : target;
             int argCount = args == null ? 0 : args.Length;
-            string key = type.FullName + "." + methodName + "." + argCount;
+            var key = new MethodKey(type, methodName, argCount);
 
             if (_methodCache.TryGetValue(key, out MethodInfo cachedMethod))
             {
